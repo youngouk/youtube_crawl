@@ -52,8 +52,13 @@ coverage.xml
 # mypy
 .mypy_cache/
 
+# ruff
+.ruff_cache/
+
 # 로컬 데이터 (큰 파일들)
 data/state.json
+data/channel_state.json
+data/reembed_*
 data/transcripts/
 data/chunks/
 data/raw/
