@@ -72,11 +72,11 @@ context, topics = processor.generate_chunk_context_and_topics(chunk_text, video_
 # topics: List of up to 5 medical keywords
 ```
 
-#### 4. Embeddings (768-dimension)
-Uses `models/gemini-embedding-001` with Matryoshka Representation Learning (MRL) to truncate output to 768 dimensions for Pinecone compatibility.
+#### 4. Embeddings (1024-dimension)
+Uses `models/gemini-embedding-001` with Matryoshka Representation Learning (MRL) to truncate output to 1024 dimensions for Pinecone compatibility.
 ```python
 vector = processor.get_embedding("Text to embed")
-# Returns a normalized list[float] of length 768
+# Returns a normalized list[float] of length 1024
 ```
 
 ***
@@ -102,10 +102,10 @@ limiter.wait_if_needed() # Called before every API request
 ### 1. Always Use `GeminiProcessor`
 Avoid calling `GoogleProvider` or `OpenRouterProvider` directly. `GeminiProcessor` provides the prompts and fallback safety.
 
-### 2. MRL Embeddings (768-dim)
-The project's Pinecone index is configured for **768 dimensions**.
-*   **Google**: Uses `output_dimensionality=768`.
-*   **OpenRouter**: Truncates output to `[:768]`.
+### 2. MRL Embeddings (1024-dim)
+The project's Pinecone index is configured for **1024 dimensions**.
+*   **Google**: Uses `output_dimensionality=1024`.
+*   **OpenRouter**: Truncates output to `[:1024]`.
 *   **Normalization**: Always normalize vectors after truncation to ensure cosine similarity works correctly.
 
 ### 3. Prompting for Medical Accuracy
