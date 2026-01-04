@@ -1,27 +1,36 @@
-from typing import Dict, Any, Optional
+from typing import Any, Optional
 import json
-from pathlib import Path
 from datetime import datetime, timezone
 from config.settings import settings
 
+
 class StateManager:
-    def __init__(self):
+    """비디오 처리 상태를 로컬 JSON 파일로 관리합니다."""
+
+    def __init__(self) -> None:
         # For simplicity in this PoC, we will primarily use local state tracking
         # Ideally this would be DynamoDB
         self.local_state_file = settings.LOCAL_DATA_DIR / "state.json"
-        
+
         if not self.local_state_file.exists():
             self._save_state({})
 
-    def _load_state(self) -> Dict[str, Any]:
+    def _load_state(self) -> dict[str, Any]:
         with open(self.local_state_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
+            result: dict[str, Any] = json.load(f)
+            return result
 
-    def _save_state(self, state: Dict[str, Any]):
+    def _save_state(self, state: dict[str, Any]) -> None:
         with open(self.local_state_file, 'w', encoding='utf-8') as f:
             json.dump(state, f, ensure_ascii=False, indent=2)
 
-    def update_video_status(self, video_id: str, status: str, step: str = None, error: str = None):
+    def update_video_status(
+        self,
+        video_id: str,
+        status: str,
+        step: Optional[str] = None,
+        error: Optional[str] = None
+    ) -> None:
         """
         Updates the processing status of a video.
 
@@ -54,6 +63,6 @@ class StateManager:
         state[video_id] = current
         self._save_state(state)
 
-    def get_video_status(self, video_id: str) -> Optional[Dict[str, Any]]:
+    def get_video_status(self, video_id: str) -> Optional[dict[str, Any]]:
         state = self._load_state()
         return state.get(video_id)

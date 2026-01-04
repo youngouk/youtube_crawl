@@ -1,12 +1,12 @@
-import pytest
 from src.processors.chunker import Chunker
 
-def test_chunker_initialization():
+
+def test_chunker_initialization() -> None:
     chunker = Chunker(chunk_size=10, chunk_overlap=2)
     assert chunker.chunk_size == 10
     assert chunker.chunk_overlap == 2
 
-def test_split_text_basic():
+def test_split_text_basic() -> None:
     # Setup
     text = "one two three four five six seven eight nine ten" # 10 words
     chunker = Chunker(chunk_size=5, chunk_overlap=2)
@@ -25,7 +25,7 @@ def test_split_text_basic():
     assert chunks[1] == "four five six seven eight"
     assert chunks[2] == "seven eight nine ten"
 
-def test_split_text_smaller_than_chunk_size():
+def test_split_text_smaller_than_chunk_size() -> None:
     text = "small text"
     chunker = Chunker(chunk_size=10, chunk_overlap=2)
     chunks = chunker.split_text(text)
@@ -33,11 +33,11 @@ def test_split_text_smaller_than_chunk_size():
     assert len(chunks) == 1
     assert chunks[0] == "small text"
 
-def test_split_text_empty():
+def test_split_text_empty() -> None:
     chunker = Chunker()
     assert chunker.split_text("") == []
 
-def test_split_text_exact_overlap_boundary():
+def test_split_text_exact_overlap_boundary() -> None:
     # 10 words, chunk 5, overlap 0 -> 2 chunks
     text = "one two three four five six seven eight nine ten"
     chunker = Chunker(chunk_size=5, chunk_overlap=0)
@@ -48,7 +48,7 @@ def test_split_text_exact_overlap_boundary():
     assert chunks[1] == "six seven eight nine ten"
 
 
-def test_split_transcript_with_timestamps():
+def test_split_transcript_with_timestamps() -> None:
     """타임스탬프가 있는 트랜스크립트를 청크로 분할 시 시작/종료 시간 반환"""
     # 타임스탬프가 있는 트랜스크립트 형식 (youtube-transcript-api 출력)
     transcript_segments = [
@@ -73,13 +73,13 @@ def test_split_transcript_with_timestamps():
     assert chunks[0]['end_time'] >= 2.0  # 최소 2초 이상 (4단어 = 최소 2개 세그먼트)
 
 
-def test_split_transcript_empty():
+def test_split_transcript_empty() -> None:
     """빈 트랜스크립트 처리"""
     chunker = Chunker()
     assert chunker.split_transcript_with_timestamps([]) == []
 
 
-def test_split_transcript_single_segment():
+def test_split_transcript_single_segment() -> None:
     """단일 세그먼트 처리"""
     transcript = [{'text': 'hello world', 'start': 0.0, 'duration': 2.0}]
     chunker = Chunker(chunk_size=10, chunk_overlap=0)

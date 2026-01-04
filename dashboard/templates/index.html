@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Medical RAG 데이터 모니터링</title>
+    <style>
+        /* 기본 스타일 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        /* 컨테이너 */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* 페이지 헤더 */
+        .page-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .page-header h1 {
+            font-size: 24px;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .page-header .subtitle {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+
+        /* 카드 공통 스타일 */
+        .card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background-color: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* 그리드 레이아웃 */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* 통계 항목 */
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .stat-value.success { color: #27ae60; }
+        .stat-value.error { color: #e74c3c; }
+        .stat-value.warning { color: #f39c12; }
+
+        /* 진행률 바 */
+        .progress-bar-container { margin-top: 15px; }
+
+        .progress-bar {
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            background-color: #27ae60;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 5px;
+            text-align: right;
+        }
+
+        /* 스토리지 통계 */
+        .storage-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+
+        .storage-item {
+            text-align: center;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .storage-item .label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 5px;
+        }
+
+        .storage-item .value {
+            font-size: 20px;
+            font-weight: 600;
+            color: #3498db;
+        }
+
+        /* 필터 영역 */
+        .filter-area {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .filter-area select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+            cursor: pointer;
+        }
+
+        .filter-area select:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+
+        /* 테이블 스타일 */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        thead {
+            background-color: #f8f9fa;
+        }
+
+        th {
+            text-align: left;
+            padding: 12px 15px;
+            font-weight: 600;
+            color: #2c3e50;
+            border-bottom: 2px solid #e9ecef;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e9ecef;
+            color: #555;
+            vertical-align: middle;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+
+        tbody tr:hover {
+            background-color: #f0f4f8;
+        }
+
+        /* 상태 배지 */
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.completed { background-color: #d4edda; color: #155724; }
+        .status-badge.failed { background-color: #f8d7da; color: #721c24; }
+        .status-badge.processing { background-color: #fff3cd; color: #856404; }
+        .status-badge.pending { background-color: #e2e3e5; color: #383d41; }
+
+        /* 썸네일 스타일 */
+        .thumbnail {
+            width: 100px;
+            height: 56px;
+            object-fit: cover;
+            border-radius: 4px;
+            background-color: #e9ecef;
+        }
+
+        .thumbnail-placeholder {
+            width: 100px;
+            height: 56px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7f8c8d;
+            font-size: 11px;
+        }
+
+        /* 제목 셀 */
+        .video-title-cell {
+            max-width: 300px;
+        }
+
+        .video-title {
+            font-weight: 500;
+            color: #2c3e50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 280px;
+            display: block;
+        }
+
+        /* 채널 셀 */
+        .channel-cell {
+            max-width: 200px;
+        }
+
+        .channel-name {
+            color: #7f8c8d;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+            display: block;
+        }
+
+        /* 요약 셀 */
+        .summary-text {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: help;
+            font-size: 13px;
+            color: #555;
+        }
+
+        /* 상세보기 버튼 */
+        .btn-detail {
+            padding: 6px 12px;
+            background-color: #3498db;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+
+        .btn-detail:hover {
+            background-color: #2980b9;
+        }
+
+        /* 페이지네이션 스타일 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background-color: #fff;
+            color: #333;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .pagination button:hover:not(:disabled) {
+            background-color: #3498db;
+            border-color: #3498db;
+            color: #fff;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination .page-info {
+            font-size: 14px;
+            color: #555;
+        }
+
+        .pagination .page-info strong {
+            color: #2c3e50;
+        }
+
+        /* 로딩 표시 */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e9ecef;
+            border-top-color: #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 빈 데이터 표시 */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #7f8c8d;
+        }
+
+        /* Pinecone 통계 */
+        .pinecone-stat {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .pinecone-stat .label {
+            font-size: 14px;
+            color: #555;
+            margin-right: 15px;
+        }
+
+        .pinecone-stat .value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #9b59b6;
+        }
+
+        /* 모달 스타일 */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+        }
+
+        .modal-header h3 {
+            font-size: 16px;
+            color: #2c3e50;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #7f8c8d;
+            line-height: 1;
+        }
+
+        .modal-close:hover {
+            color: #2c3e50;
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-thumbnail {
+            width: 100%;
+            max-width: 480px;
+            height: auto;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+
+        .modal-thumbnail-placeholder {
+            width: 100%;
+            max-width: 480px;
+            height: 270px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #7f8c8d;
+            margin-bottom: 15px;
+        }
+
+        .modal-info-item {
+            margin-bottom: 15px;
+        }
+
+        .modal-info-item .label {
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+        }
+
+        .modal-info-item .value {
+            font-size: 14px;
+            color: #2c3e50;
+            line-height: 1.5;
+        }
+
+        .modal-info-item .value.title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .modal-summary {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+        }
+
+        .btn-youtube {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background-color: #ff0000;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            margin-top: 15px;
+            transition: background-color 0.2s;
+        }
+
+        .btn-youtube:hover {
+            background-color: #cc0000;
+        }
+
+        .modal-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .modal-meta-item {
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 6px;
+        }
+
+        .modal-meta-item .label {
+            font-size: 11px;
+            color: #7f8c8d;
+            margin-bottom: 4px;
+        }
+
+        .modal-meta-item .value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        /* 마지막 업데이트 */
+        .last-updated {
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+            margin-top: 20px;
+            padding: 10px;
+        }
+
+        /* 새로고침 버튼 */
+        .btn-refresh {
+            padding: 6px 12px;
+            background-color: #27ae60;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .btn-refresh:hover {
+            background-color: #219a52;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 페이지 헤더 -->
+        <header class="page-header">
+            <h1>Medical RAG 데이터 모니터링</h1>
+            <p class="subtitle">실시간 데이터 처리 현황 대시보드</p>
+        </header>
+
+        <!-- 섹션 1: 처리 현황 요약 -->
+        <section class="card">
+            <div class="card-header">
+                처리 현황 요약
+            </div>
+            <div class="card-body">
+                <div class="stat-item">
+                    <span class="stat-label">총 영상</span>
+                    <span class="stat-value">{{ total_videos }}개</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">완료</span>
+                    <span class="stat-value success">{{ completed }}개</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">실패</span>
+                    <span class="stat-value error">{{ failed }}개</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">처리중</span>
+                    <span class="stat-value warning">{{ processing }}개</span>
+                </div>
+
+                <!-- 진행률 바 -->
+                <div class="progress-bar-container">
+                    <div class="progress-bar">
+                        {% if total_videos > 0 %}
+                        <div class="progress-bar-fill" style="width: {{ (completed / total_videos * 100) | round(1) }}%;"></div>
+                        {% else %}
+                        <div class="progress-bar-fill" style="width: 0%;"></div>
+                        {% endif %}
+                    </div>
+                    <p class="progress-text">
+                        {% if total_videos > 0 %}
+                        완료율: {{ (completed / total_videos * 100) | round(1) }}%
+                        {% else %}
+                        완료율: 0%
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 섹션 2: 스토리지 현황 -->
+        <div class="grid-2">
+            <!-- R2 스토리지 -->
+            <section class="card">
+                <div class="card-header">
+                    R2 스토리지
+                </div>
+                <div class="card-body">
+                    <div class="storage-grid">
+                        <div class="storage-item">
+                            <p class="label">Transcripts</p>
+                            <p class="value">{{ r2_stats.transcripts }}</p>
+                        </div>
+                        <div class="storage-item">
+                            <p class="label">Chunks</p>
+                            <p class="value">{{ r2_stats.chunks }}</p>
+                        </div>
+                        <div class="storage-item">
+                            <p class="label">Metadata</p>
+                            <p class="value">{{ r2_stats.metadata }}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pinecone 벡터 DB -->
+            <section class="card">
+                <div class="card-header">
+                    Pinecone 벡터 DB
+                </div>
+                <div class="card-body">
+                    <div class="pinecone-stat">
+                        <span class="label">총 벡터 수</span>
+                        <span class="value">{{ pinecone_stats.total_vectors }}</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- 섹션 3: 전체 영상 목록 -->
+        <section class="card">
+            <div class="card-header">
+                <span>전체 영상 목록</span>
+                <div class="filter-area">
+                    <select id="channelFilter" onchange="filterByChannel()">
+                        <option value="">전체 채널</option>
+                        <!-- 채널 목록은 JavaScript에서 동적으로 로드 -->
+                    </select>
+                    <button class="btn-refresh" onclick="loadVideos(1)">새로고침</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="videoListContainer">
+                    <div class="loading">데이터 로딩 중...</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 마지막 업데이트 시간 -->
+        <div class="last-updated">
+            마지막 업데이트: {{ last_updated }}
+        </div>
+    </div>
+
+    <!-- 상세보기 모달 -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>영상 상세 정보</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="modalThumbnailContainer"></div>
+                <div class="modal-info-item">
+                    <div class="label">제목</div>
+                    <div class="value title" id="modalTitle"></div>
+                </div>
+                <div class="modal-info-item">
+                    <div class="label">채널</div>
+                    <div class="value" id="modalChannel"></div>
+                </div>
+                <div class="modal-meta-grid">
+                    <div class="modal-meta-item">
+                        <div class="label">청크 수</div>
+                        <div class="value" id="modalChunkCount"></div>
+                    </div>
+                    <div class="modal-meta-item">
+                        <div class="label">처리 시간</div>
+                        <div class="value" id="modalUpdatedAt"></div>
+                    </div>
+                    <div class="modal-meta-item">
+                        <div class="label">Video ID</div>
+                        <div class="value" id="modalVideoId" style="font-size: 12px; font-family: monospace;"></div>
+                    </div>
+                </div>
+                <div class="modal-info-item">
+                    <div class="label">요약</div>
+                    <div class="modal-summary" id="modalSummary"></div>
+                </div>
+                <a href="#" id="modalYoutubeLink" class="btn-youtube" target="_blank">
+                    YouTube에서 보기
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * 대시보드 JavaScript
+         * 페이지네이션, 채널 필터, 동적 데이터 로딩을 담당합니다.
+         */
+
+        // 현재 상태
+        var currentPage = 1;
+        var perPage = 20;
+        var currentChannel = '';
+
+        /**
+         * 페이지 로드 시 초기화
+         */
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChannels();
+            loadVideos(1);
+        });
+
+        /**
+         * 채널 목록을 로드합니다.
+         */
+        function loadChannels() {
+            fetch('/api/channels')
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    var select = document.getElementById('channelFilter');
+                    // 기존 옵션 유지 (전체 채널)
+                    data.channels.forEach(function(channel) {
+                        var option = document.createElement('option');
+                        option.value = channel;
+                        option.textContent = channel;
+                        select.appendChild(option);
+                    });
+                })
+                .catch(function(error) {
+                    console.error('채널 목록 로드 실패:', error);
+                });
+        }
+
+        /**
+         * 채널 필터 변경 시 호출
+         */
+        function filterByChannel() {
+            currentChannel = document.getElementById('channelFilter').value;
+            loadVideos(1);
+        }
+
+        /**
+         * 비디오 목록을 로드합니다.
+         * @param {number} page - 페이지 번호
+         */
+        function loadVideos(page) {
+            currentPage = page;
+            var container = document.getElementById('videoListContainer');
+            container.innerHTML = '<div class="loading">데이터 로딩 중...</div>';
+
+            var url = '/api/videos?page=' + page + '&per_page=' + perPage;
+            if (currentChannel) {
+                url += '&channel=' + encodeURIComponent(currentChannel);
+            }
+
+            fetch(url)
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    renderVideoTable(data.videos, data.pagination);
+                })
+                .catch(function(error) {
+                    console.error('비디오 목록 로드 실패:', error);
+                    container.innerHTML = '<div class="empty-state"><p>데이터 로드 중 오류가 발생했습니다.</p></div>';
+                });
+        }
+
+        /**
+         * 비디오 테이블을 렌더링합니다.
+         * @param {Array} videos - 비디오 목록
+         * @param {Object} pagination - 페이지네이션 정보
+         */
+        function renderVideoTable(videos, pagination) {
+            var container = document.getElementById('videoListContainer');
+
+            if (!videos || videos.length === 0) {
+                container.innerHTML = '<div class="empty-state"><p>영상이 없습니다.</p></div>';
+                return;
+            }
+
+            var html = '<div class="table-container"><table>';
+            html += '<thead><tr>';
+            html += '<th>썸네일</th>';
+            html += '<th>제목</th>';
+            html += '<th>채널</th>';
+            html += '<th>상태</th>';
+            html += '<th>청크</th>';
+            html += '<th>요약</th>';
+            html += '<th>상세</th>';
+            html += '</tr></thead><tbody>';
+
+            videos.forEach(function(video) {
+                html += '<tr>';
+
+                // 썸네일
+                html += '<td>';
+                if (video.thumbnail_url) {
+                    html += '<img src="' + escapeHtml(video.thumbnail_url) + '" alt="썸네일" class="thumbnail">';
+                } else {
+                    html += '<div class="thumbnail-placeholder">이미지 없음</div>';
+                }
+                html += '</td>';
+
+                // 제목 (별도 컬럼)
+                html += '<td class="video-title-cell">';
+                html += '<span class="video-title" title="' + escapeHtml(video.title || '제목 없음') + '">';
+                html += escapeHtml(video.title || '제목 없음');
+                html += '</span></td>';
+
+                // 채널 (별도 컬럼)
+                html += '<td class="channel-cell">';
+                html += '<span class="channel-name" title="' + escapeHtml(video.channel_name || '-') + '">';
+                html += escapeHtml(video.channel_name || '-');
+                html += '</span></td>';
+
+                // 상태
+                html += '<td>';
+                var statusClass = video.status || 'pending';
+                var statusText = getStatusText(video.status);
+                html += '<span class="status-badge ' + statusClass + '">' + statusText + '</span>';
+                html += '</td>';
+
+                // 청크 수
+                html += '<td>' + (video.chunk_count || 0) + '</td>';
+
+                // 요약
+                html += '<td>';
+                if (video.summary) {
+                    var summaryShort = video.summary.length > 50 ? video.summary.substring(0, 50) + '...' : video.summary;
+                    html += '<span class="summary-text" title="' + escapeHtml(video.summary) + '">' + escapeHtml(summaryShort) + '</span>';
+                } else {
+                    html += '<span style="color: #7f8c8d; font-size: 12px;">요약 없음</span>';
+                }
+                html += '</td>';
+
+                // 상세 버튼
+                html += '<td>';
+                html += '<button class="btn-detail" onclick="openModal(\'' + video.video_id + '\', \'' + escapeJs(video.title || '') + '\', \'' + escapeJs(video.channel_name || '') + '\', \'' + escapeJs(video.summary || '') + '\', \'' + (video.chunk_count || 0) + '\', \'' + (video.updated_at || '') + '\', \'' + escapeJs(video.thumbnail_url || '') + '\')">상세</button>';
+                html += '</td>';
+
+                html += '</tr>';
+            });
+
+            html += '</tbody></table></div>';
+
+            // 페이지네이션
+            html += renderPagination(pagination);
+
+            container.innerHTML = html;
+        }
+
+        /**
+         * 페이지네이션 UI를 렌더링합니다.
+         * @param {Object} pagination - 페이지네이션 정보
+         * @returns {string} HTML 문자열
+         */
+        function renderPagination(pagination) {
+            var html = '<div class="pagination">';
+
+            // 처음 버튼
+            html += '<button onclick="loadVideos(1)" ' + (pagination.page === 1 ? 'disabled' : '') + '>&laquo; 처음</button>';
+
+            // 이전 버튼
+            html += '<button onclick="loadVideos(' + (pagination.page - 1) + ')" ' + (!pagination.has_prev ? 'disabled' : '') + '>&lt; 이전</button>';
+
+            // 페이지 정보
+            html += '<span class="page-info">';
+            html += '<strong>' + pagination.page + '</strong> / ' + pagination.total_pages + ' 페이지';
+            html += ' (총 ' + pagination.total_count + '개)';
+            html += '</span>';
+
+            // 다음 버튼
+            html += '<button onclick="loadVideos(' + (pagination.page + 1) + ')" ' + (!pagination.has_next ? 'disabled' : '') + '>다음 &gt;</button>';
+
+            // 마지막 버튼
+            html += '<button onclick="loadVideos(' + pagination.total_pages + ')" ' + (pagination.page === pagination.total_pages ? 'disabled' : '') + '>마지막 &raquo;</button>';
+
+            html += '</div>';
+            return html;
+        }
+
+        /**
+         * 상태 텍스트를 반환합니다.
+         * @param {string} status - 상태 코드
+         * @returns {string} 상태 텍스트
+         */
+        function getStatusText(status) {
+            switch (status) {
+                case 'completed': return '완료';
+                case 'failed': return '실패';
+                case 'processing': return '처리중';
+                default: return '대기';
+            }
+        }
+
+        /**
+         * HTML 특수문자를 이스케이프합니다.
+         * @param {string} text - 원본 텍스트
+         * @returns {string} 이스케이프된 텍스트
+         */
+        function escapeHtml(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        /**
+         * JavaScript 문자열을 이스케이프합니다.
+         * @param {string} text - 원본 텍스트
+         * @returns {string} 이스케이프된 텍스트
+         */
+        function escapeJs(text) {
+            if (!text) return '';
+            return text.replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
+        }
+
+        /**
+         * 모달을 열고 데이터를 채웁니다.
+         */
+        function openModal(videoId, title, channel, summary, chunkCount, updatedAt, thumbnailUrl) {
+            var modal = document.getElementById('detailModal');
+
+            // 썸네일 설정
+            var thumbnailContainer = document.getElementById('modalThumbnailContainer');
+            if (thumbnailUrl) {
+                thumbnailContainer.innerHTML = '<img src="' + thumbnailUrl + '" alt="썸네일" class="modal-thumbnail">';
+            } else {
+                thumbnailContainer.innerHTML = '<div class="modal-thumbnail-placeholder">썸네일 없음</div>';
+            }
+
+            // 텍스트 정보 설정
+            document.getElementById('modalTitle').textContent = title || '제목 없음';
+            document.getElementById('modalChannel').textContent = channel || '채널명 없음';
+            document.getElementById('modalChunkCount').textContent = chunkCount || '0';
+            document.getElementById('modalUpdatedAt').textContent = updatedAt || '-';
+            document.getElementById('modalVideoId').textContent = videoId;
+            document.getElementById('modalSummary').textContent = summary || '요약 정보가 없습니다.';
+
+            // YouTube 링크 설정
+            document.getElementById('modalYoutubeLink').href = 'https://www.youtube.com/watch?v=' + videoId;
+
+            // 모달 표시
+            modal.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+
+        /**
+         * 모달을 닫습니다.
+         */
+        function closeModal() {
+            var modal = document.getElementById('detailModal');
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // 모달 오버레이 클릭 시 닫기
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // ESC 키로 모달 닫기
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
+</body>
+</html>

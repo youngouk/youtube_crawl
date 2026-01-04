@@ -1,0 +1,182 @@
+[
+  {
+    "channel_id": "UC6t0ees15Lp0gyrLrAyLeJQ",
+    "name": "하정훈의 삐뽀삐뽀 119 소아과",
+    "is_verified_professional": true,
+    "credentials": "하정훈 소아청소년과 전문의",
+    "specialty": ["소아과"],
+    "priority": "high",
+    "description": "29만 구독자, 육아 필독서 '삐뽀삐뽀119소아과' 저자"
+  },
+  {
+    "channel_id": "UC-woZsctXZLnJOG-Tu6TZ5g",
+    "name": "우리동네 어린이병원",
+    "is_verified_professional": true,
+    "credentials": "소아청소년과 전문의 2인 (소아응급의학 세부전문의, IBCLC)",
+    "specialty": ["소아과", "소아응급"],
+    "priority": "high",
+    "description": "15만 구독자, 의학 정보를 쉽고 재밌게 전달"
+  },
+  {
+    "channel_id": "UCc2258li2l4AUN25pIxXFTQ",
+    "name": "우아해 (우리 아이마음 해결사)",
+    "is_verified_professional": true,
+    "credentials": "대한소아청소년정신의학회 공식 채널",
+    "specialty": ["소아정신과"],
+    "priority": "high",
+    "description": "소아정신과 전문의들이 검증된 정보 제공"
+  },
+  {
+    "channel_id": "UCo9lbsLvcgE2Ft1xXvNzELg",
+    "name": "오은영 TV",
+    "is_verified_professional": true,
+    "credentials": "오은영 정신건강의학과 전문의 (소아청소년/육아 상담 분야)",
+    "specialty": ["소아정신과", "육아/아동발달"],
+    "priority": "high",
+    "description": "47만 구독자, 국민 육아 멘토. 아이 마음/행동 문제 중심 상담형 콘텐츠"
+  },
+  {
+    "channel_id": "UCiw9dntXm3XiM3yqv6v6D6g",
+    "name": "산부인과TV",
+    "is_verified_professional": true,
+    "credentials": "산부인과 전문의",
+    "specialty": ["산부인과"],
+    "priority": "high",
+    "description": "41만 구독자, 여성 건강/임신·출산 전후 의학정보"
+  },
+  {
+    "channel_id": "UCpgoxljexZ23-K5dN0-6hVA",
+    "name": "우리동네산부인과, 우리동산",
+    "is_verified_professional": true,
+    "credentials": "산부인과 전문의 3명 공동 운영 - 홍혜리(서울대병원), 권정은(한림대 성심병원 교수 역임), 추성일(서울대병원)",
+    "specialty": ["산부인과", "출산"],
+    "priority": "high",
+    "description": "27만 구독자, 임신/출산/성병/피임/부인과 질환 전문 정보 제공"
+  },
+  {
+    "channel_id": "UCth_C7a36nylqCALjcQc2fA",
+    "name": "산부인과 의사언니",
+    "is_verified_professional": true,
+    "credentials": "김지연 산부인과 전문의 (고려대 의대 의학석사, 와이퀸 산부인과 대표원장)",
+    "specialty": ["산부인과", "성교육"],
+    "priority": "high",
+    "description": "29만 구독자, 여성 건강/성교육/피임/성병/월경 관련 의학 지식 전문"
+  },
+  {
+    "channel_id": "UC-jDMqzWRJj16_HHyi4OX1Q",
+    "name": "여의사의 산부인과 이야기",
+    "is_verified_professional": true,
+    "credentials": "산부인과 전문의(여의사) 운영 채널",
+    "specialty": ["산부인과"],
+    "priority": "medium",
+    "description": "15만 구독자, 산부인과 질환·임신/출산 관련 설명형 콘텐츠"
+  },
+  {
+    "channel_id": "UC9Vkx4zyHY4myJoykjtVm7A",
+    "name": "교육하는 의사! 이동환TV",
+    "is_verified_professional": true,
+    "credentials": "이동환 가정의학과 전문의 (세브란스병원, 경영학 박사, 강남G병원 만성피로클리닉 원장)",
+    "specialty": ["가정의학과"],
+    "priority": "high",
+    "description": "100만 구독자, 건강관리/스트레스 관리/힐링/심리학/만성피로 콘텐츠"
+  },
+  {
+    "channel_id": "UCVfLNEch9YxD4tX1L-crkMQ",
+    "name": "닥터프렌즈",
+    "is_verified_professional": true,
+    "credentials": "의사 3인 공동 운영 - 오진승(정신건강의학과), 우창윤(내과, 아산병원 진료조교수), 이낙준(이비인후과)",
+    "specialty": ["정신건강의학과", "내과", "이비인후과"],
+    "priority": "high",
+    "description": "117만 구독자, 의학정보를 쉽고 재미있게 전달, 의학 Q&A"
+  },
+  {
+    "channel_id": "UCc-6X3Z4msYR9Qt1vF4XH2g",
+    "name": "박민수박사",
+    "is_verified_professional": true,
+    "credentials": "박민수 가정의학과 전문의 (서울대 의대, 서울대병원 전임의, 의학박사, ND케어클리닉 원장)",
+    "specialty": ["가정의학과", "육아건강"],
+    "priority": "high",
+    "description": "50만 구독자, 건강 상식/노화 방지/다이어트/생활습관 관리"
+  },
+  {
+    "channel_id": "UC_AfDhGrbbL6CKr5nxx_Fow",
+    "name": "삐뽀삐뽀 정유미 TV",
+    "is_verified_professional": true,
+    "credentials": "정유미 소아청소년과 전문의 (IBCLC 국제인증수유상담가)",
+    "specialty": ["소아과", "육아/아동발달"],
+    "priority": "high",
+    "description": "8.9만 구독자, 신생아·수유·영유아 건강 이슈를 실무적으로 다룸"
+  },
+  {
+    "channel_id": "UCgFupN0s5eAxvvgAFgvriRA",
+    "name": "닥터 표TV",
+    "is_verified_professional": true,
+    "credentials": "표진원 소아청소년과 전문의",
+    "specialty": ["소아과", "육아/아동발달"],
+    "priority": "medium",
+    "description": "5.9만 구독자, 소아 진료 주제(감염/예방/생활관리) 중심"
+  },
+  {
+    "channel_id": "UC8p70V0pXzV2fC4Rsh2P2Wg",
+    "name": "김영훈의 뇌성장연구소",
+    "is_verified_professional": true,
+    "credentials": "소아청소년과 전문의 (소아신경과)",
+    "specialty": ["소아과", "아동발달"],
+    "priority": "high",
+    "description": "뇌 과학 기반 아이 인지 발달, 발달 장애 아동 치료 및 양육 가이드"
+  },
+  {
+    "channel_id": "UC2-LIM5Zz7_wKT4Q2Iu8GTA",
+    "name": "우리동네 난임전문의이재호",
+    "is_verified_professional": true,
+    "credentials": "이재호 난임전문의 (일산마리아병원)",
+    "specialty": ["산부인과", "난임/불임"],
+    "priority": "medium",
+    "description": "2.8만 구독자, 시험관아기 시술/인공수정/난임 치료 정보"
+  },
+  {
+    "channel_id": "UCkOQW37PjLp1Q1uWv6v_r1g",
+    "name": "범은경의 소아과 이야기",
+    "is_verified_professional": true,
+    "credentials": "소아청소년과 전문의",
+    "specialty": ["소아과", "육아"],
+    "priority": "medium",
+    "description": "수면 교육, 이유식, 발달 단계별 신체 변화 등 초보 부모 대상 정보성 채널"
+  },
+  {
+    "channel_id": "UCU7IBCib-YgiWSGiH-AEQKg",
+    "name": "닥터언니 Doctor sisters",
+    "is_verified_professional": true,
+    "credentials": "닥터 손, 닥터 하 전문의 의사 부부 (가정의학과/내과)",
+    "specialty": ["가정의학과", "내과"],
+    "priority": "medium",
+    "description": "5.9만 구독자, 의학 상식/건강 정보"
+  },
+  {
+    "channel_id": "UCXe8kMnNwdBFgW3Kb7baFcA",
+    "name": "정신과의사 정우열",
+    "is_verified_professional": true,
+    "credentials": "정우열 정신건강의학과 전문의",
+    "specialty": ["정신건강의학과"],
+    "priority": "medium",
+    "description": "23만 구독자, 정신건강/심리 관련 콘텐츠"
+  },
+  {
+    "channel_id": "UCxRNuVSlw8_v8VKMfZdX-Pg",
+    "name": "우아클",
+    "is_verified_professional": true,
+    "credentials": "김규연 소아청소년과 전문의",
+    "specialty": ["소아과"],
+    "priority": "low",
+    "description": "1.7만 구독자, 영유아/소아 건강 상식과 보호자 Q&A"
+  },
+  {
+    "channel_id": "UC47XKOJPCYS89nhcp8qsaEA",
+    "name": "소아청소년과 전문의가 알려주는 정보",
+    "is_verified_professional": true,
+    "credentials": "소아청소년과 전문의 운영 채널",
+    "specialty": ["소아과"],
+    "priority": "low",
+    "description": "1.4만 구독자, 소아과 진료에서 자주 묻는 질문 정리"
+  }
+]

@@ -1,11 +1,14 @@
-from typing import List, Dict
+from typing import Any
+
 
 class Chunker:
-    def __init__(self, chunk_size: int = 300, chunk_overlap: int = 50):
+    """텍스트를 고정 크기 청크로 분할합니다."""
+
+    def __init__(self, chunk_size: int = 300, chunk_overlap: int = 50) -> None:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-    def split_text(self, text: str) -> List[str]:
+    def split_text(self, text: str) -> list[str]:
         """
         Splits text into chunks of roughly `chunk_size` characters (or tokens).
         This is a simple character-based splitter for now. 
@@ -14,15 +17,10 @@ class Chunker:
         """
         # Simple splitting by words/spaces to avoid cutting words in half
         words = text.split()
-        chunks = []
-        current_chunk = []
-        current_length = 0
-        
-        # We walk through words, adding to current chunk
-        # This implementation is a "rolling window" style if we wanted strict overlap
-        # But a simpler "stride" approach is often easier to adhere to overlap exactness.
-        
-        # Let's use a stepping approach
+        chunks: list[str] = []
+
+        # Stepping approach for chunking with overlap
+        # chunk_size를 단어 수로 처리 (한국어는 형태소가 아닌 어절 기준)
         # Note: chunk_size 300 tokens approx 1000-1200 characters for English,
         # For Korean, 300 tokens might be ~500-600 characters or words.
         # Let's treat chunk_size as "approximated word count" for simplicity
@@ -43,7 +41,9 @@ class Chunker:
 
         return chunks
 
-    def split_transcript_with_timestamps(self, transcript_segments: List[Dict]) -> List[Dict]:
+    def split_transcript_with_timestamps(
+        self, transcript_segments: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """
         타임스탬프가 있는 트랜스크립트를 청크로 분할하고 시작/종료 시간을 매핑합니다.
 

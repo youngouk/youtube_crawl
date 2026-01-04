@@ -1,0 +1,10 @@
+google-generativeai
+google-api-python-client
+youtube-transcript-api
+pinecone
+boto3
+pydantic
+python-dotenv
+tqdm
+pytest
+pytest-mock

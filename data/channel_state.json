@@ -1,0 +1,304 @@
+{
+  "UC6t0ees15Lp0gyrLrAyLeJQ": {
+    "name": "하정훈의 삐뽀삐뽀 119 소아과",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 1,
+    "failed_videos": 0,
+    "no_transcript_videos": 0,
+    "skipped_videos": 49,
+    "started_at": "2026-01-01T11:14:14.490572+00:00",
+    "completed_at": "2026-01-01T11:15:27.148830+00:00",
+    "updated_at": "2026-01-01T11:15:27.148839+00:00",
+    "current_video_index": 50,
+    "error_summary": {}
+  },
+  "UC-woZsctXZLnJOG-Tu6TZ5g": {
+    "name": "우리동네 어린이병원",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 49,
+    "failed_videos": 1,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T11:15:27.702141+00:00",
+    "completed_at": "2026-01-01T12:02:36.963916+00:00",
+    "updated_at": "2026-01-01T12:02:36.963931+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No transcript": 1
+    }
+  },
+  "UCc2258li2l4AUN25pIxXFTQ": {
+    "name": "우아해 (우리 아이마음 해결사)",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 49,
+    "failed_videos": 1,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T12:02:37.635937+00:00",
+    "completed_at": "2026-01-01T12:33:29.695587+00:00",
+    "updated_at": "2026-01-01T12:33:29.695633+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No transcript": 1
+    }
+  },
+  "UCo9lbsLvcgE2Ft1xXvNzELg": {
+    "name": "오은영 TV",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 49,
+    "failed_videos": 1,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T12:33:30.302775+00:00",
+    "completed_at": "2026-01-01T13:04:44.926577+00:00",
+    "updated_at": "2026-01-01T13:04:44.926585+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No transcript": 1
+    }
+  },
+  "UCiw9dntXm3XiM3yqv6v6D6g": {
+    "name": "산부인과TV",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 50,
+    "failed_videos": 0,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T13:04:45.771886+00:00",
+    "completed_at": "2026-01-01T13:26:33.551824+00:00",
+    "updated_at": "2026-01-01T13:26:33.551856+00:00",
+    "current_video_index": 50,
+    "error_summary": {}
+  },
+  "UCpgoxljexZ23-K5dN0-6hVA": {
+    "name": "우리동네산부인과, 우리동산",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 49,
+    "failed_videos": 1,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T13:26:34.174853+00:00",
+    "completed_at": "2026-01-01T14:02:50.158765+00:00",
+    "updated_at": "2026-01-01T14:02:50.158784+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No transcript": 1
+    }
+  },
+  "UCth_C7a36nylqCALjcQc2fA": {
+    "name": "산부인과 의사언니",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 13,
+    "failed_videos": 37,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T14:02:50.780403+00:00",
+    "completed_at": "2026-01-01T14:32:39.985933+00:00",
+    "updated_at": "2026-01-01T14:32:39.985963+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 37
+    }
+  },
+  "UC-jDMqzWRJj16_HHyi4OX1Q": {
+    "name": "여의사의 산부인과 이야기",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T14:32:40.597667+00:00",
+    "completed_at": "2026-01-01T15:07:21.079452+00:00",
+    "updated_at": "2026-01-01T15:07:21.079462+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 49,
+      "No transcript": 1
+    }
+  },
+  "UC9Vkx4zyHY4myJoykjtVm7A": {
+    "name": "교육하는 의사! 이동환TV",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T15:07:21.908629+00:00",
+    "completed_at": "2026-01-01T15:40:00.843561+00:00",
+    "updated_at": "2026-01-01T15:40:00.843572+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UCVfLNEch9YxD4tX1L-crkMQ": {
+    "name": "닥터프렌즈",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T15:40:01.495566+00:00",
+    "completed_at": "2026-01-01T16:22:10.113808+00:00",
+    "updated_at": "2026-01-01T16:22:10.113818+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UCc-6X3Z4msYR9Qt1vF4XH2g": {
+    "name": "박민수박사",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 2,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T16:22:10.865461+00:00",
+    "completed_at": "2026-01-01T16:48:01.884561+00:00",
+    "updated_at": "2026-01-01T16:48:01.884569+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 48,
+      "No transcript": 2
+    }
+  },
+  "UC_AfDhGrbbL6CKr5nxx_Fow": {
+    "name": "삐뽀삐뽀 정유미 TV",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T16:48:02.712234+00:00",
+    "completed_at": "2026-01-01T17:06:55.813118+00:00",
+    "updated_at": "2026-01-01T17:06:55.813127+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UCgFupN0s5eAxvvgAFgvriRA": {
+    "name": "닥터 표TV",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T17:06:56.458397+00:00",
+    "completed_at": "2026-01-01T17:38:24.525216+00:00",
+    "updated_at": "2026-01-01T17:38:24.525227+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UC2-LIM5Zz7_wKT4Q2Iu8GTA": {
+    "name": "우리동네 난임전문의이재호",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T17:40:39.603655+00:00",
+    "completed_at": "2026-01-01T17:59:49.189440+00:00",
+    "updated_at": "2026-01-01T17:59:49.189454+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UCU7IBCib-YgiWSGiH-AEQKg": {
+    "name": "닥터언니 Doctor sisters",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 3,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T17:59:50.749286+00:00",
+    "completed_at": "2026-01-01T18:41:39.591461+00:00",
+    "updated_at": "2026-01-01T18:41:39.591471+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 47,
+      "No transcript": 3
+    }
+  },
+  "UCXe8kMnNwdBFgW3Kb7baFcA": {
+    "name": "정신과의사 정우열",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T18:41:41.483602+00:00",
+    "completed_at": "2026-01-01T19:21:32.464758+00:00",
+    "updated_at": "2026-01-01T19:21:32.464765+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 50
+    }
+  },
+  "UCxRNuVSlw8_v8VKMfZdX-Pg": {
+    "name": "우아클",
+    "status": "completed",
+    "total_videos": 50,
+    "processed_videos": 0,
+    "failed_videos": 50,
+    "no_transcript_videos": 1,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T19:21:34.369957+00:00",
+    "completed_at": "2026-01-01T19:49:28.664394+00:00",
+    "updated_at": "2026-01-01T19:49:28.664400+00:00",
+    "current_video_index": 50,
+    "error_summary": {
+      "No embeddings": 49,
+      "No transcript": 1
+    }
+  },
+  "UC47XKOJPCYS89nhcp8qsaEA": {
+    "name": "소아청소년과 전문의가 알려주는 정보",
+    "status": "completed",
+    "total_videos": 6,
+    "processed_videos": 0,
+    "failed_videos": 6,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-01T19:49:29.256052+00:00",
+    "completed_at": "2026-01-01T19:51:26.000951+00:00",
+    "updated_at": "2026-01-01T19:51:26.000961+00:00",
+    "current_video_index": 6,
+    "error_summary": {
+      "No embeddings": 6
+    }
+  },
+  "UC123": {
+    "name": "TestChannel",
+    "status": "completed",
+    "total_videos": 0,
+    "processed_videos": 0,
+    "failed_videos": 0,
+    "no_transcript_videos": 0,
+    "skipped_videos": 0,
+    "started_at": "2026-01-03T23:36:22.473333+00:00",
+    "completed_at": "2026-01-03T23:36:22.477386+00:00",
+    "updated_at": "2026-01-03T23:36:22.477390+00:00",
+    "current_video_index": 0,
+    "error_summary": {}
+  }
+}
