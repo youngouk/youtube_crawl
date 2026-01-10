@@ -358,6 +358,86 @@ class RateLimiter:
         self.last_call = time.time()
 
 
+def create_pinecone_vector(
+    video_id: str,
+    chunk_index: int,
+    chunk_text: str,
+    context: str,
+    topics: list[str],
+    start_time: float,
+    end_time: float,
+    video_title: str,
+    channel_id: str,
+    channel_name: str,
+    channel_meta: dict,
+    embedding: list[float],
+    published_at: str = ""
+) -> dict:
+    """
+    Pinecone 저장용 벡터 구조 생성
+
+    최종 스키마:
+    - ID: {video_id}_chunk_{n}
+    - 구버전 필드명: chunk_text, start_time, end_time
+    - 신버전 메타데이터: specialty, credentials 등
+    """
+    # specialty 정규화
+    specialty = channel_meta.get('specialty', [])
+    if isinstance(specialty, list):
+        specialty = specialty[0] if specialty else 'NONE'
+
+    return {
+        'id': f"{video_id}_chunk_{chunk_index}",
+        'values': embedding,
+        'metadata': {
+            # 구버전 필드명
+            'chunk_text': chunk_text,
+            'start_time': start_time,
+            'end_time': end_time,
+
+            # 공통 필드
+            'video_id': video_id,
+            'video_title': video_title,
+            'channel_id': channel_id,
+            'channel_name': channel_name,
+            'chunk_index': chunk_index,
+            'context': context,
+            'topics': topics,
+            'processed_at': datetime.now().isoformat(),
+
+            # 신버전 추가 필드
+            'is_verified_professional': channel_meta.get('is_verified_professional', False),
+            'specialty': specialty,
+            'credentials': channel_meta.get('credentials', ''),
+            'video_url': f'https://www.youtube.com/watch?v={video_id}',
+            'source_type': 'youtube',
+            'published_at': published_at
+        }
+    }
+
+
+def generate_embedding(
+    processor: GeminiProcessor,
+    chunk_text: str,
+    context: str,
+    rate_limiter: RateLimiter
+) -> list[float] | None:
+    """
+    청크의 임베딩 벡터 생성
+
+    context + chunk_text를 결합하여 임베딩
+    """
+    rate_limiter.wait()
+
+    try:
+        combined_text = f"{context}\n\n{chunk_text}"
+        embedding = processor.get_embedding(combined_text)
+        return embedding
+    except Exception as e:
+        logger.error(f"임베딩 생성 실패: {e}")
+        return None
+
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Pinecone 데이터 재구축')
@@ -441,8 +521,43 @@ def main():
         log(f"  - Context: {context[:80]}...")
         log(f"  - Topics: {topics}")
 
-    log("\n✅ Task 4 완료: Gemini API 통합")
-    log("⚠️ Task 5부터 구현 필요")
+    # 임베딩 및 벡터 구조 테스트
+    if video_ids and sample and chunks and not args.dry_run:
+        log(f"\n임베딩 생성 테스트...")
+        rate_limiter = RateLimiter(calls_per_minute=15)
+
+        test_chunk = chunks[0]
+        embedding = generate_embedding(
+            processor,
+            test_chunk['text'],
+            context,
+            rate_limiter
+        )
+
+        if embedding:
+            log(f"  - 임베딩 차원: {len(embedding)}")
+
+            # 벡터 구조 생성 테스트
+            vector = create_pinecone_vector(
+                video_id=video_ids[0],
+                chunk_index=0,
+                chunk_text=test_chunk['text'],
+                context=context,
+                topics=topics,
+                start_time=test_chunk['start_time'],
+                end_time=test_chunk['end_time'],
+                video_title="테스트 비디오",
+                channel_id="test_channel",
+                channel_name="테스트 채널",
+                channel_meta={"is_verified_professional": True, "specialty": ["소아과"], "credentials": "테스트"},
+                embedding=embedding
+            )
+
+            log(f"  - 벡터 ID: {vector['id']}")
+            log(f"  - 메타데이터 키: {list(vector['metadata'].keys())}")
+
+    log("\n✅ Task 5 완료: 임베딩 및 벡터 구조")
+    log("⚠️ Task 6부터 구현 필요")
 
 
 if __name__ == "__main__":
