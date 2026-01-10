@@ -438,22 +438,140 @@ def generate_embedding(
         return None
 
 
+def delete_all_vectors(index) -> int:
+    """Pinecone 인덱스의 모든 벡터 삭제"""
+    try:
+        # 전체 삭제
+        index.delete(delete_all=True)
+        log("  모든 벡터 삭제 완료")
+        return 0
+    except Exception as e:
+        logger.error(f"벡터 삭제 실패: {e}")
+        raise
+
+
+def upsert_vectors(index, vectors: list[dict]) -> int:
+    """벡터 배치 upsert"""
+    if not vectors:
+        return 0
+
+    try:
+        for i in range(0, len(vectors), PINECONE_BATCH_SIZE):
+            batch = vectors[i:i + PINECONE_BATCH_SIZE]
+            index.upsert(vectors=batch)
+        return len(vectors)
+    except Exception as e:
+        logger.error(f"벡터 upsert 실패: {e}")
+        raise
+
+
+def process_video(
+    video_id: str,
+    r2: R2Client,
+    processor: GeminiProcessor,
+    channels_meta: dict,
+    rate_limiter: RateLimiter,
+    dry_run: bool = False
+) -> list[dict]:
+    """
+    단일 비디오 처리: R2 로드 → 청킹 → Context/Topics → 임베딩 → 벡터 생성
+
+    Returns:
+        생성된 벡터 리스트
+    """
+    # 1. R2에서 데이터 로드
+    data = r2.get_video_data(video_id)
+    if not data:
+        raise ValueError(f"R2 데이터 없음: {video_id}")
+
+    # 2. 메타데이터 조회 (R2에서 추가 정보 로드)
+    metadata = r2.get_json(f"metadata/{video_id}/metadata.json") or {}
+    video_title = metadata.get('video_title', f'Video {video_id}')
+    channel_id = metadata.get('channel_id', '')
+    channel_name = metadata.get('channel_name', 'Unknown')
+    published_at = metadata.get('published_at', '')
+
+    # 채널 메타데이터 조회
+    channel_meta = channels_meta.get(channel_id, {})
+    if not channel_meta:
+        # channel_name으로 재시도
+        for ch in channels_meta.values():
+            if ch.get('name') == channel_name:
+                channel_meta = ch
+                break
+
+    # 3. 청킹
+    chunks = chunk_with_timestamps(
+        data['refined_text'],
+        data['raw_segments']
+    )
+
+    if not chunks:
+        raise ValueError(f"청크 생성 실패: {video_id}")
+
+    # 4. 각 청크 처리
+    vectors = []
+    for chunk in chunks:
+        # Context & Topics 생성
+        rate_limiter.wait()
+        context, topics = generate_context_and_topics(
+            processor,
+            chunk['text'],
+            video_title,
+            channel_name
+        )
+
+        if dry_run:
+            # dry-run 모드에서는 더미 임베딩 사용
+            embedding = [0.0] * 1024
+        else:
+            # 임베딩 생성
+            embedding = generate_embedding(
+                processor,
+                chunk['text'],
+                context,
+                rate_limiter
+            )
+
+            if not embedding:
+                logger.warning(f"임베딩 실패, 스킵: {video_id}_chunk_{chunk['chunk_index']}")
+                continue
+
+        # 벡터 구조 생성
+        vector = create_pinecone_vector(
+            video_id=video_id,
+            chunk_index=chunk['chunk_index'],
+            chunk_text=chunk['text'],
+            context=context,
+            topics=topics,
+            start_time=chunk['start_time'],
+            end_time=chunk['end_time'],
+            video_title=video_title,
+            channel_id=channel_id,
+            channel_name=channel_name,
+            channel_meta=channel_meta,
+            embedding=embedding,
+            published_at=published_at
+        )
+
+        vectors.append(vector)
+
+    return vectors
+
+
 def main():
-    """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Pinecone 데이터 재구축')
     parser.add_argument('--resume', action='store_true', help='중단 지점부터 재개')
     parser.add_argument('--dry-run', action='store_true', help='테스트 모드 (실제 저장 안함)')
     parser.add_argument('--limit', type=int, default=0, help='처리할 비디오 수 제한 (0=전체)')
+    parser.add_argument('--skip-delete', action='store_true', help='기존 데이터 삭제 스킵')
     args = parser.parse_args()
 
     log("=" * 60)
-    log("Pinecone 데이터 재구축 스크립트")
+    log("Pinecone 데이터 재구축")
     log("=" * 60)
     log(f"청크 크기: {CHUNK_SIZE}토큰, 오버랩: {CHUNK_OVERLAP}토큰")
     log(f"모드: {'DRY-RUN (테스트)' if args.dry_run else '실제 실행'}")
-    log(f"재개 모드: {'예' if args.resume else '아니오'}")
-    if args.limit > 0:
-        log(f"처리 제한: {args.limit}개 비디오")
     log()
 
     # 초기화
@@ -465,99 +583,91 @@ def main():
 
     r2 = R2Client()
     channels_meta = load_channels_metadata()
+    processor = GeminiProcessor()
+    rate_limiter = RateLimiter(calls_per_minute=15)
 
-    log(f"채널 메타데이터 로드: {len(channels_meta)}개 채널")
+    # Pinecone 초기화
+    pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+    index = pc.Index(settings.PINECONE_INDEX_NAME)
+
+    log(f"채널 메타데이터: {len(channels_meta)}개")
+    log(f"Pinecone 인덱스: {settings.PINECONE_INDEX_NAME}")
+
+    # 기존 데이터 삭제
+    if not args.resume and not args.skip_delete and not args.dry_run:
+        log("\n🗑️ 기존 Pinecone 데이터 삭제 중...")
+        stats = index.describe_index_stats()
+        log(f"  삭제 전 벡터 수: {stats.total_vector_count:,}")
+        delete_all_vectors(index)
+        time.sleep(2)  # 삭제 반영 대기
 
     # 비디오 목록 조회
     video_ids = r2.list_video_ids()
-    log(f"R2 비디오 수: {len(video_ids)}개")
+    log(f"\nR2 비디오 수: {len(video_ids)}개")
 
     # 이미 완료된 비디오 제외
     if args.resume:
+        before = len(video_ids)
         video_ids = [v for v in video_ids if not progress.is_completed(v)]
-        log(f"처리 대상: {len(video_ids)}개 (완료된 비디오 제외)")
+        log(f"완료된 비디오 제외: {before} → {len(video_ids)}개")
 
     # 제한 적용
     if args.limit > 0:
         video_ids = video_ids[:args.limit]
         log(f"제한 적용: {len(video_ids)}개")
 
-    # 샘플 데이터 로드 테스트
-    sample = None
-    if video_ids:
-        sample = r2.get_video_data(video_ids[0])
-        if sample:
-            log(f"\n샘플 데이터 확인 ({video_ids[0]}):")
-            log(f"  - raw_segments: {len(sample['raw_segments'])}개")
-            log(f"  - refined_text: {len(sample['refined_text'])}자")
+    # 처리 시작
+    log("\n" + "=" * 60)
+    log("비디오 처리 시작")
+    log("=" * 60)
 
-    # 청킹 테스트
-    chunks = []
-    if video_ids and sample:
-        chunks = chunk_with_timestamps(
-            sample['refined_text'],
-            sample['raw_segments']
-        )
-        log(f"\n청킹 테스트 ({video_ids[0]}):")
-        log(f"  - 생성된 청크 수: {len(chunks)}개")
-        if chunks:
-            log(f"  - 첫 청크: {chunks[0]['text'][:50]}...")
-            log(f"  - 첫 청크 시간: {chunks[0]['start_time']}s ~ {chunks[0]['end_time']}s")
-            log(f"  - 첫 청크 토큰 수: {count_tokens(chunks[0]['text'])}")
+    total = len(video_ids)
+    success = 0
+    failed = 0
+    total_chunks = 0
 
-    # Context/Topics 생성 테스트
-    if video_ids and sample and chunks and not args.dry_run:
-        log(f"\nContext/Topics 생성 테스트...")
-        processor = GeminiProcessor()
+    for i, video_id in enumerate(video_ids, 1):
+        try:
+            log(f"\n[{i}/{total}] {video_id}")
 
-        test_chunk = chunks[0]
-        context, topics = generate_context_and_topics(
-            processor,
-            test_chunk['text'],
-            "테스트 비디오",
-            "테스트 채널"
-        )
-
-        log(f"  - Context: {context[:80]}...")
-        log(f"  - Topics: {topics}")
-
-    # 임베딩 및 벡터 구조 테스트
-    if video_ids and sample and chunks and not args.dry_run:
-        log(f"\n임베딩 생성 테스트...")
-        rate_limiter = RateLimiter(calls_per_minute=15)
-
-        test_chunk = chunks[0]
-        embedding = generate_embedding(
-            processor,
-            test_chunk['text'],
-            context,
-            rate_limiter
-        )
-
-        if embedding:
-            log(f"  - 임베딩 차원: {len(embedding)}")
-
-            # 벡터 구조 생성 테스트
-            vector = create_pinecone_vector(
-                video_id=video_ids[0],
-                chunk_index=0,
-                chunk_text=test_chunk['text'],
-                context=context,
-                topics=topics,
-                start_time=test_chunk['start_time'],
-                end_time=test_chunk['end_time'],
-                video_title="테스트 비디오",
-                channel_id="test_channel",
-                channel_name="테스트 채널",
-                channel_meta={"is_verified_professional": True, "specialty": ["소아과"], "credentials": "테스트"},
-                embedding=embedding
+            # 비디오 처리
+            vectors = process_video(
+                video_id=video_id,
+                r2=r2,
+                processor=processor,
+                channels_meta=channels_meta,
+                rate_limiter=rate_limiter,
+                dry_run=args.dry_run
             )
 
-            log(f"  - 벡터 ID: {vector['id']}")
-            log(f"  - 메타데이터 키: {list(vector['metadata'].keys())}")
+            log(f"  청크 수: {len(vectors)}개")
 
-    log("\n✅ Task 5 완료: 임베딩 및 벡터 구조")
-    log("⚠️ Task 6부터 구현 필요")
+            # Pinecone 저장
+            if not args.dry_run and vectors:
+                upsert_vectors(index, vectors)
+                log(f"  ✅ Pinecone 저장 완료")
+
+            # 진행 상태 업데이트
+            progress.mark_completed(video_id, len(vectors))
+            success += 1
+            total_chunks += len(vectors)
+
+        except Exception as e:
+            logger.error(f"  ❌ 실패: {e}")
+            progress.mark_failed(video_id, str(e))
+            failed += 1
+
+    # 최종 통계
+    log("\n" + "=" * 60)
+    log("완료!")
+    log("=" * 60)
+    log(f"성공: {success}개 비디오")
+    log(f"실패: {failed}개 비디오")
+    log(f"총 청크: {total_chunks}개")
+
+    if not args.dry_run:
+        stats = index.describe_index_stats()
+        log(f"Pinecone 최종 벡터 수: {stats.total_vector_count:,}")
 
 
 if __name__ == "__main__":
