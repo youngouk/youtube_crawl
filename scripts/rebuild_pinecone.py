@@ -202,6 +202,105 @@ def load_channels_metadata() -> dict[str, dict]:
     return {ch['channel_id']: ch for ch in channels}
 
 
+# tiktoken 인코더 (지연 초기화)
+_TOKENIZER = None
+
+
+def get_tokenizer():
+    """토크나이저 인스턴스 반환 (지연 초기화)"""
+    global _TOKENIZER
+    if _TOKENIZER is None:
+        try:
+            _TOKENIZER = tiktoken.get_encoding("cl100k_base")
+        except Exception:
+            _TOKENIZER = tiktoken.get_encoding("gpt2")
+    return _TOKENIZER
+
+
+def count_tokens(text: str) -> int:
+    """텍스트의 토큰 수 반환"""
+    return len(get_tokenizer().encode(text))
+
+
+def chunk_with_timestamps(
+    refined_text: str,
+    raw_segments: list[dict],
+    chunk_size: int = CHUNK_SIZE,
+    overlap: int = CHUNK_OVERLAP
+) -> list[dict]:
+    """
+    refined_text를 청킹하고 raw_segments에서 타임스탬프 매핑
+
+    Args:
+        refined_text: 정제된 전체 텍스트
+        raw_segments: 원본 세그먼트 리스트 [{"text": "...", "start": 0.0, "duration": 5.0}, ...]
+        chunk_size: 청크 크기 (토큰)
+        overlap: 오버랩 크기 (토큰)
+
+    Returns:
+        [{"text": "...", "start_time": 0.0, "end_time": 30.5, "chunk_index": 0}, ...]
+    """
+    if not refined_text or not raw_segments:
+        return []
+
+    # 1. raw_segments에서 타임스탬프 매핑 생성
+    # 문자 위치 -> 시간 매핑을 위한 누적 텍스트 구축
+    char_to_time = []
+    current_pos = 0
+
+    for seg in raw_segments:
+        seg_text = seg.get('text', '')
+        start = seg.get('start', 0)
+        duration = seg.get('duration', 0)
+        end = start + duration
+
+        # 각 문자에 시간 할당 (선형 보간)
+        for i, char in enumerate(seg_text):
+            ratio = i / max(len(seg_text), 1)
+            time_at_char = start + (duration * ratio)
+            char_to_time.append(time_at_char)
+
+        # 세그먼트 사이 공백
+        char_to_time.append(end)
+
+    # 2. refined_text를 토큰 단위로 청킹
+    tokenizer = get_tokenizer()
+    tokens = tokenizer.encode(refined_text)
+    chunks = []
+
+    start_idx = 0
+    while start_idx < len(tokens):
+        end_idx = min(start_idx + chunk_size, len(tokens))
+        chunk_tokens = tokens[start_idx:end_idx]
+        chunk_text = tokenizer.decode(chunk_tokens)
+
+        # 3. 청크의 시작/종료 시간 추정
+        # refined_text에서 청크의 대략적인 위치 계산
+        text_start_ratio = start_idx / max(len(tokens), 1)
+        text_end_ratio = end_idx / max(len(tokens), 1)
+
+        # 전체 시간 범위
+        if raw_segments:
+            total_duration = raw_segments[-1].get('start', 0) + raw_segments[-1].get('duration', 0)
+        else:
+            total_duration = 0
+
+        start_time = total_duration * text_start_ratio
+        end_time = total_duration * text_end_ratio
+
+        chunks.append({
+            "text": chunk_text.strip(),
+            "start_time": round(start_time, 2),
+            "end_time": round(end_time, 2),
+            "chunk_index": len(chunks)
+        })
+
+        # 다음 청크 시작 (오버랩 적용)
+        start_idx += (chunk_size - overlap)
+
+    return chunks
+
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Pinecone 데이터 재구축')
@@ -247,6 +346,7 @@ def main():
         log(f"제한 적용: {len(video_ids)}개")
 
     # 샘플 데이터 로드 테스트
+    sample = None
     if video_ids:
         sample = r2.get_video_data(video_ids[0])
         if sample:
@@ -254,8 +354,21 @@ def main():
             log(f"  - raw_segments: {len(sample['raw_segments'])}개")
             log(f"  - refined_text: {len(sample['refined_text'])}자")
 
-    log("\n✅ Task 2 완료: R2 클라이언트 및 데이터 로더")
-    log("⚠️ Task 3부터 구현 필요")
+    # 청킹 테스트
+    if video_ids and sample:
+        chunks = chunk_with_timestamps(
+            sample['refined_text'],
+            sample['raw_segments']
+        )
+        log(f"\n청킹 테스트 ({video_ids[0]}):")
+        log(f"  - 생성된 청크 수: {len(chunks)}개")
+        if chunks:
+            log(f"  - 첫 청크: {chunks[0]['text'][:50]}...")
+            log(f"  - 첫 청크 시간: {chunks[0]['start_time']}s ~ {chunks[0]['end_time']}s")
+            log(f"  - 첫 청크 토큰 수: {count_tokens(chunks[0]['text'])}")
+
+    log("\n✅ Task 3 완료: 청킹 로직 구현")
+    log("⚠️ Task 4부터 구현 필요")
 
 
 if __name__ == "__main__":
