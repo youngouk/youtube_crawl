@@ -22,9 +22,11 @@ FastAPI 기반 웹 대시보드를 제공합니다.
 import json
 import logging
 import time
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
+from collections import defaultdict
 
 import boto3
 from botocore.config import Config
@@ -138,10 +140,17 @@ app = FastAPI(
 # 템플릿 디렉토리 설정
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
+# ============================================
+# 글로벌 캐시 (성능 최적화)
+# ============================================
+# R2 스토리지 통계 캐시 (5분 TTL)
+_r2_stats_cache = TTLCache(ttl_seconds=300)
+# 대시보드 데이터 캐시 (60초 TTL)
+_dashboard_cache = TTLCache(ttl_seconds=60)
+# 백그라운드 태스크 참조
+_background_task: asyncio.Task | None = None
 
-# ============================================
-# R2 스토리지 클라이언트
-# ============================================
+
 class R2Client:
     """
     Cloudflare R2 스토리지 클라이언트
@@ -181,38 +190,55 @@ class R2Client:
             logger.error(f"R2 클라이언트 초기화 실패: {e}")
             self.client = None
 
-    def count_objects_in_folder(self, prefix: str) -> int:
+    def get_folder_stats(self, prefix: str) -> dict[str, Any]:
         """
-        지정된 폴더(prefix) 내의 객체 수를 반환합니다.
+        지정된 폴더(prefix) 내의 객체 수와 총 용량을 반환합니다.
 
         Args:
             prefix: 조회할 폴더 경로 (예: 'transcripts/')
 
         Returns:
-            해당 폴더 내 객체 수
+            {'count': 객체 수, 'size_bytes': 총 용량, 'size_human': 읽기 쉬운 용량}
         """
         if not self.client:
-            logger.warning("R2 클라이언트가 초기화되지 않았습니다.")
-            return 0
+            return {"count": 0, "size_bytes": 0, "size_human": "0 B"}
 
         try:
-            count = 0
             paginator = self.client.get_paginator("list_objects_v2")
+            total_count = 0
+            total_size = 0
 
-            # 페이지네이션으로 모든 객체 조회
             for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
                 if "Contents" in page:
-                    # 폴더 자체는 제외하고 파일만 카운트
-                    count += sum(
-                        1 for obj in page["Contents"]
-                        if not obj["Key"].endswith("/")
-                    )
+                    for obj in page["Contents"]:
+                        if not obj["Key"].endswith("/"):
+                            total_count += 1
+                            total_size += obj.get("Size", 0)
 
-            logger.info(f"R2 폴더 '{prefix}' 객체 수: {count}")
-            return count
+            return {
+                "count": total_count,
+                "size_bytes": total_size,
+                "size_human": self._format_bytes(total_size)
+            }
         except Exception as e:
-            logger.error(f"R2 객체 수 조회 실패 (prefix={prefix}): {e}")
-            return 0
+            logger.error(f"R2 폴더 통계 조회 실패 ({prefix}): {e}")
+            return {"count": 0, "size_bytes": 0, "size_human": "0 B"}
+
+    def _format_bytes(self, size_bytes: int) -> str:
+        """바이트 단위를 읽기 쉬운 형식으로 변환합니다."""
+        if size_bytes == 0:
+            return "0 B"
+        units = ("B", "KB", "MB", "GB", "TB")
+        import math
+        i = int(math.floor(math.log(size_bytes, 1024)))
+        p = math.pow(1024, i)
+        s = round(size_bytes / p, 2)
+        return f"{s} {units[i]}"
+
+    def count_objects_in_folder(self, prefix: str) -> int:
+        """이전 버전과의 호환성을 위해 유지합니다."""
+        stats = self.get_folder_stats(prefix)
+        return stats["count"]
 
     def get_all_video_ids(self) -> list[str]:
         """
@@ -611,6 +637,70 @@ class StateManager:
             "updated_at": updated_at
         }
 
+    def enrich_video_metadata(self, limit: int = 10) -> int:
+        """
+        메타데이터가 부족한 비디오(복구된 상태 등)를 찾아 R2에서 정보를 보강합니다.
+        
+        Args:
+            limit: 한 번에 조회할 비디오 수
+            
+        Returns:
+            업데이트된 비디오 수
+        """
+        if not self.r2_client:
+            return 0
+
+        # 상태 로드
+        videos = self.load_state()
+        if not videos:
+            return 0
+
+        # 보강이 필요한 비디오 식별 (채널명이 없거나 restored 플래그가 있는 경우)
+        candidates = []
+        for video_id, data in videos.items():
+            if data.get("restored") or "channel_name" not in data or data.get("channel_name") == "Unknown":
+                candidates.append(video_id)
+        
+        # 대상이 없으면 종료
+        if not candidates:
+            return 0
+
+        # 제한된 수만큼 선택
+        targets = candidates[:limit]
+        updated_count = 0
+
+        for video_id in targets:
+            try:
+                # R2에서 메타데이터 조회
+                meta = self.r2_client.get_video_metadata(video_id)
+                if meta:
+                    # state 업데이트
+                    videos[video_id]["title"] = meta.get("title", videos[video_id].get("title", ""))
+                    videos[video_id]["channel_name"] = meta.get("channel_title", "Unknown")
+                    videos[video_id]["summary"] = self._truncate_text(meta.get("summary", ""), 100)
+                    videos[video_id]["thumbnail_url"] = meta.get("thumbnail_url", "")
+                    videos[video_id]["chunk_count"] = meta.get("chunk_count", videos[video_id].get("chunk_count", 0))
+                    
+                    # restored 플래그 제거 및 업데이트 시간 갱신
+                    if "restored" in videos[video_id]:
+                        del videos[video_id]["restored"]
+                    
+                    updated_count += 1
+            except Exception as e:
+                logger.warning(f"비디오 {video_id} 메타데이터 보강 실패: {e}")
+
+        # 변경사항 저장
+        if updated_count > 0:
+            try:
+                # 백업용으로 기존 파일을 .bak으로 저장하지 않고 바로 덮어씀 (성능 우선)
+                with open(self.state_file, "w", encoding="utf-8") as f:
+                    json.dump(videos, f, ensure_ascii=False, indent=2)
+                logger.info(f"메타데이터 보강 완료: {updated_count}개 비디오 업데이트")
+            except Exception as e:
+                logger.error(f"state.json 업데이트 실패: {e}")
+
+        return updated_count
+
     def get_all_channels(self) -> list[str]:
         """
         모든 고유 채널 목록을 반환합니다.
@@ -720,19 +810,16 @@ class StateManager:
     def get_statistics(self) -> dict[str, Any]:
         """
         처리 상태 통계를 계산합니다.
-
-        R2에서 실제 메타데이터를 가져와 풍부한 정보를 제공합니다.
+        성능 최적화를 위해 메타데이터는 필요한 경우(최근 목록 등)에만 부분적으로 조회합니다.
 
         Returns:
-            통계 딕셔너리 (total_videos, completed, failed, processing, recent_videos)
+            통계 딕셔너리
         """
         # 캐시된 결과 확인
         cached_stats = self._stats_cache.get("statistics")
         if cached_stats is not None:
-            logger.debug("캐시된 통계 데이터 반환")
             return cached_stats
 
-        # state.json은 video_id를 키로 하는 딕셔너리 형태
         videos = self.load_state()
 
         # 상태별 카운트
@@ -741,56 +828,106 @@ class StateManager:
         failed = 0
         processing = 0
 
-        # 최근 비디오 목록 (최대 10개)
-        recent_videos: list[dict[str, Any]] = []
+        # 트렌드 및 분포 분석
+        trends_map = defaultdict(int)
+        distribution_map = defaultdict(int)
+        health_summary = {"S": 0, "A": 0, "B": 0, "F": 0}
 
-        # video_id 목록 추출
-        video_ids = list(videos.keys())
-
-        # R2에서 메타데이터 일괄 조회 (캐싱 적용)
-        r2_metadata: dict[str, dict[str, Any]] = {}
-        if self.r2_client:
-            r2_metadata = self.r2_client.get_all_video_metadata(
-                video_ids,
-                cache=self._metadata_cache
-            )
-            logger.info(f"R2에서 {len(r2_metadata)}개 비디오 메타데이터 로드")
+        # 최근 비디오 후보 리스트
+        recent_candidates: list[tuple[str, dict[str, Any]]] = []
 
         for video_id, video_data in videos.items():
             status = video_data.get("status", "pending")
-
+            
+            # 상태 카운팅
             if status == "completed":
                 completed += 1
+                # 트렌드 (날짜별)
+                updated_at = video_data.get("updated_at", "")
+                if updated_at and "T" in updated_at:
+                    trends_map[updated_at.split("T")[0]] += 1
+                
+                # 채널 분포 (state에 정보가 있을 경우만)
+                ch_name = video_data.get("channel_name", "Unknown")
+                if ch_name != "Unknown":
+                    distribution_map[ch_name] += 1
+
+                # 헬스 점수 (약식 계산: 메타데이터 로드 없이 state 정보로 판단)
+                chunks = video_data.get("chunk_count", 0)
+                if chunks != "-" and int(chunks) > 0:
+                    # chunk가 있으면 최소 A, 요약까지 있으면 S라고 가정할 수 있으나
+                    # 여기서는 안전하게 chunk 존재 시 A로 분류
+                    health_summary["A"] += 1 
+                else:
+                    health_summary["B"] += 1
+
             elif status == "failed":
                 failed += 1
+                health_summary["F"] += 1
             elif status in ("processing", "in_progress"):
                 processing += 1
 
-            # R2 메타데이터 가져오기
-            metadata = r2_metadata.get(video_id, {})
+            # 최근 비디오 후보 추가
+            recent_candidates.append((video_id, video_data))
 
-            # 비디오 정보 구성
-            video_info = self._build_video_info(video_id, video_data, metadata)
-            recent_videos.append(video_info)
-
-        # 최근 업데이트 순으로 정렬 (updated_at 기준)
-        recent_videos.sort(
-            key=lambda x: x.get("updated_at", ""),
+        # 최근 업데이트 순으로 정렬하여 상위 10개 추출
+        recent_candidates.sort(
+            key=lambda x: x[1].get("updated_at", ""),
             reverse=True
         )
+        top_10_candidates = recent_candidates[:10]
+
+        # Top 10에 대해서만 R2 메타데이터 상세 조회
+        recent_videos = []
+        for video_id, video_data in top_10_candidates:
+            # 기본 정보 구성
+            video_info = {
+                "video_id": video_id,
+                "title": video_data.get("title", f"Video {video_id}"),
+                "channel_name": video_data.get("channel_name", "Unknown"),
+                "status": video_data.get("status", "pending"),
+                "chunk_count": video_data.get("chunk_count", 0),
+                "summary": video_data.get("summary", ""),
+                "thumbnail_url": video_data.get("thumbnail_url", ""),
+                "updated_at": self._format_updated_at(video_data.get("updated_at", "-"))
+            }
+
+            # 상세 메타데이터가 없는 경우(예: 복구된 상태) R2에서 조회 시도
+            if self.r2_client and (video_info["title"].startswith("Video ") or not video_info["summary"]):
+                meta = self.r2_client.get_video_metadata(video_id)
+                if meta:
+                    video_info["title"] = meta.get("title", video_info["title"])
+                    video_info["channel_name"] = meta.get("channel_title", video_info["channel_name"])
+                    video_info["summary"] = self._truncate_text(meta.get("summary", ""), 60)
+                    video_info["thumbnail_url"] = meta.get("thumbnail_url", video_info["thumbnail_url"])
+                    
+                    # 배포 차트용 데이터 보정 (상위 10개에 대해서라도)
+                    if meta.get("channel_title"):
+                         distribution_map[meta.get("channel_title")] += 1
+
+            recent_videos.append(video_info)
+
+        # 정렬된 트렌드 데이터 (최근 14일)
+        sorted_trends = sorted(trends_map.items())[-14:]
+        # 정렬된 분포 데이터
+        sorted_distribution = sorted(distribution_map.items(), key=lambda x: x[1], reverse=True)
 
         result = {
             "total_videos": total,
             "completed": completed,
             "failed": failed,
             "processing": processing,
-            "recent_videos": recent_videos[:10]  # 최근 10개만
+            "recent_videos": recent_videos,
+            "trends": [{"day": d, "count": c} for d, c in sorted_trends],
+            "distribution": [{"channel": c, "count": v} for c, v in sorted_distribution],
+            "health": health_summary
         }
 
         # 결과 캐싱
         self._stats_cache.set("statistics", result)
-
         return result
+
+
 
 
 # ============================================
@@ -803,23 +940,51 @@ state_manager = StateManager(LOCAL_DATA_DIR, r2_client=r2_client)
 
 
 # ============================================
-# 데이터 수집 함수
+# 데이터 수집 함수 (성능 최적화)
 # ============================================
-def collect_dashboard_data() -> dict[str, Any]:
+def _fetch_r2_stats_uncached() -> dict[str, Any]:
+    """R2 스토리지 통계를 가져옵니다 (캐시 없이)."""
+    return {
+        "transcripts": r2_client.get_folder_stats("transcripts/"),
+        "chunks": r2_client.get_folder_stats("chunks/"),
+        "metadata": r2_client.get_folder_stats("metadata/")
+    }
+
+
+def get_cached_r2_stats() -> dict[str, Any]:
+    """캐시된 R2 스토리지 통계를 반환합니다."""
+    cached = _r2_stats_cache.get("r2_stats")
+    if cached is not None:
+        return cached
+    
+    # 캐시 미스 시 새로 가져와서 캐싱
+    stats = _fetch_r2_stats_uncached()
+    _r2_stats_cache.set("r2_stats", stats)
+    return stats
+
+
+def collect_dashboard_data(force_refresh: bool = False) -> dict[str, Any]:
     """
     대시보드에 표시할 모든 데이터를 수집합니다.
+    성능 최적화를 위해 캐시를 우선 사용합니다.
+
+    Args:
+        force_refresh: True면 캐시를 무시하고 새로 수집
 
     Returns:
         템플릿에 전달할 데이터 딕셔너리
     """
+    # 캐시 우선 조회
+    if not force_refresh:
+        cached = _dashboard_cache.get("dashboard_data")
+        if cached is not None:
+            logger.debug("캐시된 대시보드 데이터 반환")
+            return cached
+
     logger.info("대시보드 데이터 수집 시작")
 
-    # 1. R2 스토리지 통계
-    r2_stats = {
-        "transcripts": r2_client.count_objects_in_folder("transcripts/"),
-        "chunks": r2_client.count_objects_in_folder("chunks/"),
-        "metadata": r2_client.count_objects_in_folder("metadata/")
-    }
+    # 1. R2 스토리지 통계 (5분 캐시 사용)
+    r2_stats = get_cached_r2_stats()
 
     # 2. Pinecone 통계
     pinecone_stats = {
@@ -844,8 +1009,72 @@ def collect_dashboard_data() -> dict[str, Any]:
         "last_updated": last_updated
     }
 
-    logger.info(f"대시보드 데이터 수집 완료: {data}")
+    # 결과 캐싱
+    _dashboard_cache.set("dashboard_data", data)
+    logger.info(f"대시보드 데이터 수집 완료")
     return data
+
+
+# ============================================
+# 백그라운드 캐시 워밍 (Prefetch)
+# ============================================
+async def background_cache_refresh():
+    """
+    백그라운드에서 주기적으로 캐시를 갱신하고 메타데이터를 보강합니다.
+    """
+    while True:
+        try:
+            await asyncio.sleep(60)  # 60초마다 갱신
+            loop = asyncio.get_event_loop()
+            
+            # 1. 대시보드 데이터 갱신 (캐시 워밍)
+            await loop.run_in_executor(None, collect_dashboard_data, True)
+            
+            # 2. 메타데이터 보강 (Enrichment)
+            # 한 번에 20개씩 천천히 보강하여 서버 부하 방지
+            updated = await loop.run_in_executor(None, state_manager.enrich_video_metadata, 20)
+            if updated > 0:
+                logger.info(f"백그라운드: {updated}개 비디오 메타데이터 보강됨")
+            
+            logger.debug("백그라운드 작업 완료")
+            
+        except asyncio.CancelledError:
+            logger.info("백그라운드 태스크 종료")
+            break
+        except Exception as e:
+            logger.error(f"백그라운드 작업 실패: {e}")
+            await asyncio.sleep(30)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """서버 시작 시 캐시를 미리 워밍합니다."""
+    global _background_task
+    logger.info("서버 시작: 캐시 워밍 중...")
+    try:
+        # 초기 캐시 워밍 (동기 함수를 별도 스레드에서 실행)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, collect_dashboard_data, True)
+        logger.info("초기 캐시 워밍 완료")
+    except Exception as e:
+        logger.error(f"초기 캐시 워밍 실패: {e}")
+    
+    # 백그라운드 갱신 태스크 시작
+    _background_task = asyncio.create_task(background_cache_refresh())
+    logger.info("백그라운드 캐시 갱신 태스크 시작")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """서버 종료 시 백그라운드 태스크를 정리합니다."""
+    global _background_task
+    if _background_task:
+        _background_task.cancel()
+        try:
+            await _background_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("백그라운드 태스크 정리 완료")
 
 
 # ============================================
@@ -911,6 +1140,20 @@ async def get_status() -> dict[str, Any]:
             "pinecone_stats": {"total_vectors": 0},
             "last_updated": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         }
+
+
+@app.get("/api/stats/analysis")
+async def get_analysis_stats() -> dict[str, Any]:
+    """분석용 상세 통계를 반환합니다."""
+    try:
+        stats = state_manager.get_statistics()
+        return {
+            "trends": stats.get("trends", []),
+            "distribution": stats.get("distribution", [])
+        }
+    except Exception as e:
+        logger.error(f"분석 통계 조회 실패: {e}")
+        return {"trends": [], "distribution": []}
 
 
 @app.get("/health")
