@@ -1,0 +1,12 @@
+[config]
+description = "Run the application services"
+
+[subcommands]
+core = { description = "Run the Core Processing Pipeline" }
+dash = { description = "Run the Monitoring Dashboard" }
+
+[steps.core]
+command = "python main.py"
+
+[steps.dash]
+command = "cd dashboard && uvicorn main:app --reload"

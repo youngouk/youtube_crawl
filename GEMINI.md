@@ -1,142 +1,167 @@
-# Gemini Quick Reference for Agents
+# Gemini & System Architecture Reference
 
-This guide covers the usage, best practices, and architecture of the Gemini-based processing pipeline in this project.
+> **SuperClaude Framework Active**: This project utilizes the SuperClaude operational framework.
+> See [SuperClaude Context](.gemini/superclaude_context.md) for Personas, Rules, and Modes.
 
-***
+This guide details the **Dual-Service Architecture** of the Medical RAG Pipeline, distinguishing between the Core Processing Engine and the Standalone Monitoring Dashboard.
 
-## 🔧 Architecture: Multi-Provider LLM System
+---
 
-The project uses a dual-provider system to ensure reliability and bypass quota limitations of the Google Gemini free tier.
+## 🇰🇷 Language & Localization
 
-*   **Primary Provider**: `Google Gemini API` (Direct)
-*   **Fallback Provider**: `OpenRouter API` (via `google/gemini-2.5-flash`)
+*   **Primary Language:** **Korean (한국어)**.
+*   **LLM Outputs:** All generated content (Summaries, Contexts, Topic Keywords) must be in Korean.
+*   **Agent Interaction:** When maintaining this project or interacting via CLI, **responses and explanations should be provided in Korean** unless explicitly requested otherwise.
 
-### LLM Manager & Fallback Logic
-The `LLMManager` handles the transition between providers:
-1.  **Try Google**: Attempts to use the Google Gemini API first.
-2.  **Detect Quota**: If a `QuotaExceededError` (429) is received, it automatically enables **Fallback Mode**.
-3.  **Switch to OpenRouter**: Subsequent requests are routed to OpenRouter until the manager is reset.
-4.  **Embeddings**: Uses `models/gemini-embedding-001`. If it fails, falls back to OpenRouter's embedding model.
+---
 
-***
+## 🏗️ System Architecture: The "Dual-Service" Model
 
-## 🔧 Installation & Setup
+The project is architected as two completely independent services that share only data interfaces (Storage & Config). This decoupling ensures that the lightweight Dashboard can be deployed separately from the heavy-duty Core Pipeline.
 
-**Requirements:**
+### 1. Core Processing Service (Root)
+*   **Location:** `/` (Root Directory)
+*   **Role:** The backend worker responsible for heavy-lifting tasks.
+*   **Key Responsibilities:**
+    *   YouTube Data Collection
+    *   LLM Processing (Gemini/OpenRouter)
+    *   Vector Embedding & Indexing
+    *   R2 Storage Management
+*   **Codebase:** Uses the `src/` package structure.
+*   **Dependencies:** Heavy (Torch, LangChain, etc. - inferred from complex tasks).
+
+### 2. Dashboard Service (`/dashboard`)
+*   **Location:** `/dashboard/`
+*   **Role:** A lightweight, standalone web viewer for system monitoring.
+*   **Design Principle:** **Zero-Dependency on Core**.
+    *   It does **not** import from `src/`.
+    *   It implements its own lightweight clients (`R2Client`, `PineconeClient`, `StateManager`) to remain independent.
+    *   It can be deployed on serverless/PaaS platforms (like Railway) without the heavy dependencies of the core pipeline.
+*   **Key Responsibilities:**
+    *   Real-time status visualization.
+    *   Data inspection (R2/Pinecone stats).
+    *   State recovery.
+
+---
+
+## 📂 Project Structure & Boundaries
+
+```text
+/ (Root)
+├── main.py                     # [Core] Pipeline Entry Point
+├── src/                        # [Core] Logic Modules (Collectors, Processors)
+├── config/                     # [Core] Configuration
+├── data/                       # [Shared] Local State & Cache
+├── .env                        # [Shared] Configuration Source
+│
+└── dashboard/                  # [Service] Standalone Dashboard
+    ├── main.py                 # [Dash] FastAPI App (Self-contained logic)
+    ├── templates/              # [Dash] UI Templates
+    ├── railway.toml            # [Dash] Deployment Config
+    ├── Procfile                # [Dash] Deployment Command
+    └── requirements.txt        # [Dash] Lightweight Dependencies
+```
+
+---
+
+## 🚀 Service 1: Core Pipeline (`src/`)
+
+The Core Pipeline is driven by `main.py` and utilizes the `src` modules.
+
+### Gemini Processor (`src.processors.gemini_processor`)
+The central intelligence unit using a Multi-Provider Strategy:
+1.  **Google Gemini API**: Primary provider (Free Tier optimization).
+2.  **OpenRouter API**: Fallback provider (for `QuotaExceededError`).
+3.  **Embeddings**: Generates 1024-dimension vectors (MRL) for Pinecone.
+
+### Storage & Vector DB (`src.storage`, `src.vector_db`)
+*   **R2Storage**: Handles raw JSON storage (transcripts, chunks).
+*   **PineconeManager**: Manages vector indices and semantic search.
+
+---
+
+## 📊 Service 2: Monitoring Dashboard (`dashboard/`)
+
+The Dashboard is a FastAPI application designed for observability.
+
+### Independence & Duplication
+To maintain isolation, the dashboard **re-implements** necessary logic instead of importing it:
+*   **`R2Client`**: A lightweight Boto3 wrapper, distinct from `src.storage.r2_storage`.
+*   **`PineconeClient`**: A simplified status checker, distinct from `src.vector_db.pinecone_manager`.
+*   **`StateManager`**: Reads `data/state.json` or reconstructs state from R2 metadata.
+
+### Features
+*   **Pipeline Tracking**: Visualizes the lifecycle of a video (Pending -> Processing -> Completed).
+*   **Storage Inspection**: Counts objects in R2 buckets directly.
+*   **Recovery Tool**: Can rebuild the local `state.json` file by scanning R2 if the local state is lost.
+
+### Deployment (Railway)
+The `dashboard/` folder contains everything needed for deployment:
+*   `railway.toml`: Configures the build.
+*   `Procfile`: `web: uvicorn main:app --host 0.0.0.0 --port $PORT`
+
+---
+
+## 🔌 Shared Interfaces
+
+Despite code separation, both services connect to the same infrastructure via:
+
+1.  **Environment Variables (`.env`)**:
+    *   Both services load the **same** `.env` file from the project root.
+    *   Keys: `GOOGLE_API_KEY`, `R2_ACCESS_KEY_ID`, `PINECONE_API_KEY`, etc.
+
+2.  **Cloud Storage (Cloudflare R2)**:
+    *   **Core**: Writes transcripts, chunks, and metadata.
+    *   **Dashboard**: Reads these files to display status and details.
+
+3.  **Vector Database (Pinecone)**:
+    *   **Core**: Upserts vectors.
+    *   **Dashboard**: Queries index statistics (vector counts).
+
+4.  **Local State (`data/state.json`)**:
+    *   **Core**: Writes processing status.
+    *   **Dashboard**: Reads to show real-time progress (when running locally).
+
+---
+
+## 🛠️ Usage Guide
+
+### Gemini CLI Commands
+Use these slash commands for common tasks:
+
+*   **/test**: Run unit tests (e.g., `/test`, `/test tests/test_pipeline.py`).
+*   **/run:core**: Start the Core Pipeline.
+*   **/run:dash**: Start the Monitoring Dashboard (Auto-reload enabled).
+*   **/lint**: Run code linting with Ruff.
+*   **/pr:review**: Generate a PR review checklist and risk analysis.
+
+> **Tip:** The `dashboard/` directory has its own `GEMINI.md` context. When working in that folder, Gemini will automatically load those specific rules.
+
+### Running the Core Pipeline
 ```bash
-pip install google-generativeai requests
+# Install Core Dependencies
+pip install -r requirements.txt
+
+# Run Pipeline
+python main.py
 ```
 
-**Environment Variables (.env):**
+### Running the Dashboard
 ```bash
-GOOGLE_API_KEY=your_google_api_key
-OPENROUTER_API_KEY=your_openrouter_api_key  # Optional fallback
+# Go to Dashboard Directory
+cd dashboard
+
+# Install Dashboard Dependencies (Lightweight)
+pip install -r requirements.txt
+
+# Run Dashboard
+python main.py
+# Access at http://localhost:8000
 ```
 
-***
-
-## 🚀 Core Component: `GeminiProcessor`
-
-The `GeminiProcessor` is the high-level interface for all LLM tasks.
-
-### Initialization
-```python
-from src.processors.gemini_processor import GeminiProcessor
-
-processor = GeminiProcessor(
-    rpm=5,  # Rate limit for Google Free Tier
-    google_api_key="...",
-    openrouter_api_key="..."
-)
-```
-
-### Key Functionalities
-
-#### 1. Transcript Refinement
-Fixes misheard words, medical terminology, and formatting without changing meaning.
-```python
-refined_text = processor.refine_transcript(raw_text)
-```
-
-#### 2. Video Summarization
-Generates a 3-5 sentence summary used as context for individual chunks.
-```python
-summary = processor.summarize_video(full_transcript)
-```
-
-#### 3. Integrated Context & Topic Extraction
-Performs two tasks in one API call to save tokens and time.
-```python
-context, topics = processor.generate_chunk_context_and_topics(chunk_text, video_summary)
-# context: 1-2 sentence description of chunk's role in the video
-# topics: List of up to 5 medical keywords
-```
-
-#### 4. Embeddings (1024-dimension)
-Uses `models/gemini-embedding-001` with Matryoshka Representation Learning (MRL) to truncate output to 1024 dimensions for Pinecone compatibility.
-```python
-vector = processor.get_embedding("Text to embed")
-# Returns a normalized list[float] of length 1024
-```
-
-***
+---
 
 ## ⏱️ Rate Limiting & Quotas
 
-### Google Gemini Free Tier
-*   **Rate Limit**: Default 5 RPM (Requests Per Minute).
-*   **Daily Quota**: Limited (varies by region/account).
-*   **Handling**: The `RateLimiter` class ensures requests stay within the RPM limit by introducing `time.sleep()`.
-
-### Implementation
-```python
-# RateLimiter logic used internally by GoogleProvider
-limiter = RateLimiter(rpm=5)
-limiter.wait_if_needed() # Called before every API request
-```
-
-***
-
-## 🚨 Common Patterns & Best Practices
-
-### 1. Always Use `GeminiProcessor`
-Avoid calling `GoogleProvider` or `OpenRouterProvider` directly. `GeminiProcessor` provides the prompts and fallback safety.
-
-### 2. MRL Embeddings (1024-dim)
-The project's Pinecone index is configured for **1024 dimensions**.
-*   **Google**: Uses `output_dimensionality=1024`.
-*   **OpenRouter**: Truncates output to `[:1024]`.
-*   **Normalization**: Always normalize vectors after truncation to ensure cosine similarity works correctly.
-
-### 3. Prompting for Medical Accuracy
-When modifying prompts in `GeminiProcessor`, maintain the **"Medical Expert"** persona and strict constraints:
-*   "Meaning must not be changed."
-*   "Do not add medical information not present in the source."
-*   "Output raw text only (no preamble)."
-
-### 4. Monitoring Stats
-Check provider usage during long-running tasks:
-```python
-stats = processor.get_stats()
-print(f"Google: {stats['google_success']} | OpenRouter: {stats['openrouter_success']}")
-```
-
-***
-
-## 🛠️ Error Handling
-
-| Error Class | Cause | Action |
-| :--- | :--- | :--- |
-| `QuotaExceededError` | Daily limit reached (Google) | Manager switches to OpenRouter automatically. |
-| `RateLimitError` | RPM/TPM limit hit | Retries with exponential backoff. |
-| `ProviderError` | DNS, Timeout, Authentication | Retries up to `MAX_RETRIES` then fails. |
-
-***
-
-## Recommended Models (2025)
-
-| Task | Model | Reason |
-| :--- | :--- | :--- |
-| Text Gen | `gemini-2.5-flash` | Extremely fast, high context window, free tier available. |
-| Embedding | `gemini-embedding-001` | High quality, supports MRL truncation. |
-| Fallback | `google/gemini-2.5-flash` | Consistency in output style when switching providers. |
+*   **Core**: Strictly rate-limited (5 RPM) for Google Gemini Free Tier.
+*   **Dashboard**: Uses internal **TTL Caching (60s)** for R2 and Pinecone queries to avoid API rate limits and reduce costs during monitoring.

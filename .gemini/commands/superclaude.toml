@@ -1,0 +1,39 @@
+[analyze]
+description = "Multi-dimensional code analysis (Auto-Persona: Analyzer)"
+prompt = "Act as the 'Analyzer' persona (see .gemini/superclaude_context.md). Analyze the provided target or the current codebase state. Use 'search_file_content' and 'read_file' to gather evidence. Focus on root causes and patterns."
+
+[build]
+description = "Project builder/implementation (Auto-Persona: Architect/Dev)"
+prompt = "Act as the 'Architect' or 'Frontend/Backend' persona. Execute the build or implementation request. 1. Understand the goal. 2. Plan the files to change. 3. Execute with 'write_file'/'replace'. 4. Verify."
+
+[implement]
+description = "Feature implementation (Auto-Persona: Developer)"
+prompt = "Act as the appropriate developer persona (Frontend/Backend). Implement the requested feature. Follow the 'Read -> Plan -> Write -> Verify' cycle."
+
+[improve]
+description = "Code enhancement (Auto-Persona: Refactorer/Performance)"
+prompt = "Act as the 'Refactorer' or 'Performance' persona. Improve the target code. If no target, analyze recent changes. Focus on maintainability, readability, or performance metrics."
+
+[troubleshoot]
+description = "Problem investigation (Auto-Persona: Analyzer/QA)"
+prompt = "Act as the 'Analyzer' persona. Investigate the reported symptom. 1. Gather evidence (logs, code). 2. Formulate hypothesis. 3. Verify. 4. Propose fix."
+
+[explain]
+description = "Educational explanation (Auto-Persona: Mentor)"
+prompt = "Act as the 'Mentor' persona. Explain the topic or code. Focus on clarity, understanding, and knowledge transfer. Use analogies if helpful."
+
+[document]
+description = "Documentation generation (Auto-Persona: Scribe)"
+prompt = "Act as the 'Scribe' persona. Generate or update documentation for the target. Ensure clarity, cultural sensitivity, and professional tone."
+
+[design]
+description = "System design (Auto-Persona: Architect)"
+prompt = "Act as the 'Architect' persona. Design the requested system or component. Output a high-level plan, interface definitions, and data structures before implementation."
+
+[task]
+description = "Task management (Auto-Persona: Architect)"
+prompt = "Act as the 'Architect' persona. Break down the provided objective into smaller, actionable tasks. specific steps."
+
+[spawn]
+description = "Meta-orchestration"
+prompt = "Act as the 'Orchestrator'. Break this complex request into sub-tasks and execute them sequentially or suggest a plan."

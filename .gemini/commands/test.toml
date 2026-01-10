@@ -1,0 +1,13 @@
+[config]
+description = "Run the project's test suite"
+
+[arguments]
+file = { type = "string", description = "Specific test file to run (optional)", required = false }
+
+[steps.all]
+condition = "file == null"
+command = "pytest"
+
+[steps.specific]
+condition = "file != null"
+command = "pytest {{file}}"

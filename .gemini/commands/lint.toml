@@ -1,0 +1,5 @@
+[config]
+description = "Run linting and formatting checks"
+
+[steps.lint]
+command = "ruff check ."

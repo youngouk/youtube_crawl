@@ -1,0 +1,53 @@
+{
+  "language": "ko",
+  "temperature": 0.7,
+  "maxTokens": 8192,
+  "context": {
+    "files": ["GEMINI.md"],
+    "ignore": [".git", ".venv", "__pycache__", "node_modules"]
+  },
+  "mcpServers": {
+    "desktop-commander": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "@wonderwhy-er/desktop-commander"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    },
+    "playwright-mcp": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "@playwright/mcp"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    },
+    "context7-mcp": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@upstash/context7-mcp"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    },
+    "mcp-sequentialthinking-tools": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@xinzhongyouhai/mcp-sequentialthinking-tools"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    },
+    "railway-mcp": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "@smithery/cli@latest", "run", "@jason-tan-swe/railway-mcp"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    },
+    "chrome-devtools": {
+      "command": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin/npx",
+      "args": ["-y", "chrome-devtools-mcp@latest"],
+      "env": {
+        "PATH": "/Users/youngouksong/.nvm/versions/node/v22.17.0/bin:/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin"
+      }
+    }
+  }
+}
