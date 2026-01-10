@@ -137,6 +137,71 @@ class ProgressTracker:
         }
 
 
+class R2Client:
+    """R2 스토리지 클라이언트"""
+
+    def __init__(self):
+        self.client = boto3.client(
+            's3',
+            endpoint_url=settings.R2_ENDPOINT_URL,
+            aws_access_key_id=settings.R2_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.R2_SECRET_ACCESS_KEY,
+            config=Config(signature_version='s3v4'),
+            region_name='auto'
+        )
+        self.bucket = settings.R2_BUCKET_NAME
+
+    def get_json(self, key: str) -> dict | list | None:
+        """R2에서 JSON 파일 읽기"""
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=key)
+            return json.loads(response['Body'].read().decode('utf-8'))
+        except Exception as e:
+            logger.debug(f"R2 읽기 실패 ({key}): {e}")
+            return None
+
+    def list_video_ids(self) -> list[str]:
+        """transcripts/ 폴더의 모든 비디오 ID 목록 반환"""
+        video_ids = set()
+        paginator = self.client.get_paginator('list_objects_v2')
+
+        for page in paginator.paginate(Bucket=self.bucket, Prefix='transcripts/'):
+            for obj in page.get('Contents', []):
+                parts = obj['Key'].split('/')
+                if len(parts) >= 2 and parts[1]:
+                    video_ids.add(parts[1])
+
+        return sorted(list(video_ids))
+
+    def get_video_data(self, video_id: str) -> dict | None:
+        """비디오의 raw.json과 refined.json 로드"""
+        raw = self.get_json(f"transcripts/{video_id}/raw.json")
+        refined = self.get_json(f"transcripts/{video_id}/refined.json")
+
+        if not raw or not refined:
+            return None
+
+        return {
+            "video_id": video_id,
+            "raw_segments": raw,
+            "refined_text": refined.get("text", "")
+        }
+
+
+def load_channels_metadata() -> dict[str, dict]:
+    """channels.json에서 채널별 메타데이터 로드"""
+    channels_path = Path("data/channels.json")
+    if not channels_path.exists():
+        logger.error("data/channels.json 파일이 없습니다")
+        return {}
+
+    with open(channels_path, 'r', encoding='utf-8') as f:
+        channels = json.load(f)
+
+    # channel_id를 키로 하는 딕셔너리로 변환
+    return {ch['channel_id']: ch for ch in channels}
+
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Pinecone 데이터 재구축')
@@ -155,21 +220,42 @@ def main():
         log(f"처리 제한: {args.limit}개 비디오")
     log()
 
-    # TODO: 구현 예정 (Task 2부터)
-    log("⚠️ 아직 구현되지 않았습니다. Task 2부터 구현 필요.")
-    log()
-    log("예정 기능:")
-    log("  1. R2에서 원본 트랜스크립트 로드")
-    log("  2. 채널 메타데이터(specialty, credentials) 매핑")
-    log("  3. 120토큰 청킹 (오버랩 20토큰)")
-    log("  4. Gemini 임베딩 생성")
-    log("  5. Pinecone 업서트 (구버전 필드명 사용)")
-    log()
+    # 초기화
+    progress = ProgressTracker()
+    if not args.resume:
+        log("⚠️ 진행 상태 초기화")
+        progress.reset()
+    progress.start()
 
-    # 진행 상태 추적기 테스트
-    tracker = ProgressTracker()
-    summary = tracker.get_summary()
-    log(f"현재 진행 상태: {summary['completed_count']}개 완료, {summary['total_chunks']}개 청크")
+    r2 = R2Client()
+    channels_meta = load_channels_metadata()
+
+    log(f"채널 메타데이터 로드: {len(channels_meta)}개 채널")
+
+    # 비디오 목록 조회
+    video_ids = r2.list_video_ids()
+    log(f"R2 비디오 수: {len(video_ids)}개")
+
+    # 이미 완료된 비디오 제외
+    if args.resume:
+        video_ids = [v for v in video_ids if not progress.is_completed(v)]
+        log(f"처리 대상: {len(video_ids)}개 (완료된 비디오 제외)")
+
+    # 제한 적용
+    if args.limit > 0:
+        video_ids = video_ids[:args.limit]
+        log(f"제한 적용: {len(video_ids)}개")
+
+    # 샘플 데이터 로드 테스트
+    if video_ids:
+        sample = r2.get_video_data(video_ids[0])
+        if sample:
+            log(f"\n샘플 데이터 확인 ({video_ids[0]}):")
+            log(f"  - raw_segments: {len(sample['raw_segments'])}개")
+            log(f"  - refined_text: {len(sample['refined_text'])}자")
+
+    log("\n✅ Task 2 완료: R2 클라이언트 및 데이터 로더")
+    log("⚠️ Task 3부터 구현 필요")
 
 
 if __name__ == "__main__":
