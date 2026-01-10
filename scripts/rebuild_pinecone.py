@@ -301,6 +301,63 @@ def chunk_with_timestamps(
     return chunks
 
 
+def generate_context_and_topics(
+    processor: GeminiProcessor,
+    chunk_text: str,
+    video_title: str,
+    channel_name: str
+) -> tuple[str, list[str]]:
+    """
+    Gemini API로 청크의 context와 topics 생성
+
+    Args:
+        processor: GeminiProcessor 인스턴스
+        chunk_text: 청크 텍스트
+        video_title: 비디오 제목
+        channel_name: 채널 이름
+
+    Returns:
+        (context, topics)
+    """
+    # 비디오 요약 생성 (간단 버전)
+    video_summary = f"'{video_title}' - {channel_name} 채널의 의료/건강 정보 영상"
+
+    try:
+        # GeminiProcessor의 기존 메서드 활용
+        context, topics = processor.generate_chunk_context_and_topics(
+            chunk_text, video_summary
+        )
+
+        # topics가 없거나 빈 경우 기본값
+        if not topics or topics == ['NONE']:
+            topics = ['NONE']
+
+        return context, topics
+
+    except Exception as e:
+        logger.warning(f"Context/Topics 생성 실패: {e}")
+        # 폴백: 기본 context 생성
+        context = f"이 내용은 {channel_name} 채널의 '{video_title}' 영상에서 발췌한 것입니다."
+        return context, ['NONE']
+
+
+class RateLimiter:
+    """API 호출 속도 제한"""
+
+    def __init__(self, calls_per_minute: int = 15):
+        self.calls_per_minute = calls_per_minute
+        self.interval = 60.0 / calls_per_minute
+        self.last_call = 0
+
+    def wait(self) -> None:
+        """필요시 대기"""
+        now = time.time()
+        elapsed = now - self.last_call
+        if elapsed < self.interval:
+            time.sleep(self.interval - elapsed)
+        self.last_call = time.time()
+
+
 def main():
     """메인 실행 함수"""
     parser = argparse.ArgumentParser(description='Pinecone 데이터 재구축')
@@ -355,6 +412,7 @@ def main():
             log(f"  - refined_text: {len(sample['refined_text'])}자")
 
     # 청킹 테스트
+    chunks = []
     if video_ids and sample:
         chunks = chunk_with_timestamps(
             sample['refined_text'],
@@ -367,8 +425,24 @@ def main():
             log(f"  - 첫 청크 시간: {chunks[0]['start_time']}s ~ {chunks[0]['end_time']}s")
             log(f"  - 첫 청크 토큰 수: {count_tokens(chunks[0]['text'])}")
 
-    log("\n✅ Task 3 완료: 청킹 로직 구현")
-    log("⚠️ Task 4부터 구현 필요")
+    # Context/Topics 생성 테스트
+    if video_ids and sample and chunks and not args.dry_run:
+        log(f"\nContext/Topics 생성 테스트...")
+        processor = GeminiProcessor()
+
+        test_chunk = chunks[0]
+        context, topics = generate_context_and_topics(
+            processor,
+            test_chunk['text'],
+            "테스트 비디오",
+            "테스트 채널"
+        )
+
+        log(f"  - Context: {context[:80]}...")
+        log(f"  - Topics: {topics}")
+
+    log("\n✅ Task 4 완료: Gemini API 통합")
+    log("⚠️ Task 5부터 구현 필요")
 
 
 if __name__ == "__main__":
