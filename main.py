@@ -121,26 +121,25 @@ def normalize_specialty(specialty_value: Any) -> str:
 def main(
     retry_failed: bool = False,
     skip_completed_channels: bool = True,
-    specific_channel: str | None = None
+    specific_channel: str | None = None,
+    max_results: int = 50,
+    sort_override: str | None = None
 ) -> None:
     """
-    Medical RAG 파이프라인의 메인 실행 함수입니다.
-
-    여러 채널을 자동으로 순회하며 처리하고, 각 채널의 진행 상황을 추적합니다.
-
-    Args:
-        retry_failed: True이면 failed 상태인 영상도 재시도합니다.
-        skip_completed_channels: True이면 이미 완료된 채널은 스킵합니다.
-        specific_channel: 특정 채널 ID만 처리합니다 (None이면 전체 처리).
+    파이프라인 메인 실행 루프입니다.
     """
     logger.info("=" * 60)
     logger.info("Starting Medical RAG Pipeline - Multi-Channel Processing")
     logger.info("=" * 60)
-
+    
     if retry_failed:
         logger.info("Retry mode enabled: will retry failed videos")
     if specific_channel:
         logger.info(f"Processing specific channel only: {specific_channel}")
+    
+    # 정렬 및 개수 설정 로깅
+    current_sort = sort_override or settings.VIDEO_SORT_BY
+    logger.info(f"Sort mode: {current_sort}, Max results: {max_results}")
 
     # Initialize components
     storage = get_storage()
@@ -166,7 +165,7 @@ def main(
     if settings.PINECONE_API_KEY:
         pinecone_manager = PineconeManager()
         
-    chunker = Chunker(chunk_size=300, chunk_overlap=50)
+    chunker = Chunker(chunk_size=120, chunk_overlap=20)
 
     # Load Channels
     channels_path = "channels.json"
@@ -209,13 +208,33 @@ def main(
             processed_channels += 1
             continue
 
-        # 1. Fetch Videos (정렬 기준: settings.VIDEO_SORT_BY)
-        videos = yt_collector.get_channel_videos_sorted(
-            channel_id,
-            max_results=50,
-            sort_by=settings.VIDEO_SORT_BY,
-            fetch_pool=settings.VIDEO_FETCH_POOL
-        )
+        # 1. Fetch Videos
+        sort_by = sort_override or settings.VIDEO_SORT_BY
+        
+        if sort_by == "both":
+            logger.info(f"Fetching both 'recent' and 'views' (max {max_results} each)")
+            recent_vids = yt_collector.get_channel_videos_sorted(
+                channel_id,
+                max_results=max_results,
+                sort_by="recent"
+            )
+            popular_vids = yt_collector.get_channel_videos_sorted(
+                channel_id,
+                max_results=max_results,
+                sort_by="views",
+                fetch_pool=settings.VIDEO_FETCH_POOL
+            )
+            # Merge and deduplicate
+            video_dict = {v['video_id']: v for v in (recent_vids + popular_vids)}
+            videos = list(video_dict.values())
+            logger.info(f"Combined videos: {len(recent_vids)} recent + {len(popular_vids)} views -> {len(videos)} unique")
+        else:
+            videos = yt_collector.get_channel_videos_sorted(
+                channel_id,
+                max_results=max_results,
+                sort_by=sort_by,
+                fetch_pool=settings.VIDEO_FETCH_POOL
+            )
 
         if not videos:
             logger.warning(f"채널에서 비디오를 찾을 수 없습니다: {channel_name}")
@@ -519,6 +538,16 @@ if __name__ == "__main__":
         help='모든 채널 상태 리셋 (주의: 재처리 필요)'
     )
 
+    parser.add_argument(
+        '--max-results', type=int, default=50,
+        help='수집할 비디오 수 (단일 정렬 기준)'
+    )
+    parser.add_argument(
+        '--sort', type=str, default=None,
+        choices=['recent', 'views', 'both'],
+        help='비디오 정렬 기준 (recent, views, both)'
+    )
+
     args = parser.parse_args()
 
     if args.status:
@@ -541,5 +570,7 @@ if __name__ == "__main__":
         main(
             retry_failed=args.retry,
             skip_completed_channels=not args.no_skip,
-            specific_channel=args.channel
+            specific_channel=args.channel,
+            max_results=args.max_results,
+            sort_override=args.sort
         )
