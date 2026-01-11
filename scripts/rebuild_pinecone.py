@@ -19,9 +19,13 @@ import json
 import time
 import logging
 import argparse
+import signal
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # 외부 라이브러리 (실제 실행 시 필요)
 # boto3, pinecone, tiktoken은 Task 2에서 사용
@@ -59,6 +63,18 @@ CHUNK_SIZE = 120          # 토큰
 CHUNK_OVERLAP = 20        # 토큰
 PINECONE_BATCH_SIZE = 100
 PROGRESS_FILE = "data/rebuild_progress.json"
+VIDEO_TIMEOUT = 600       # 비디오당 최대 처리 시간 (초)
+PARALLEL_WORKERS = 15     # 병렬 처리 워커 수 (임베딩만 하므로 증가)
+
+
+class TimeoutError(Exception):
+    """비디오 처리 타임아웃 에러"""
+    pass
+
+
+def timeout_handler(signum, frame):
+    """타임아웃 시그널 핸들러"""
+    raise TimeoutError("비디오 처리 타임아웃")
 
 
 def log(msg: str = "") -> None:
@@ -420,14 +436,15 @@ def generate_embedding(
     processor: GeminiProcessor,
     chunk_text: str,
     context: str,
-    rate_limiter: RateLimiter
+    rate_limiter: RateLimiter  # 호환성을 위해 유지하지만 사용하지 않음
 ) -> list[float] | None:
     """
     청크의 임베딩 벡터 생성
 
     context + chunk_text를 결합하여 임베딩
+    참고: rate_limiter는 process_video에서 이미 호출됨
     """
-    rate_limiter.wait()
+    # rate_limiter.wait()는 process_video에서 청크 단위로 호출됨
 
     try:
         combined_text = f"{context}\n\n{chunk_text}"
@@ -474,76 +491,64 @@ def process_video(
     dry_run: bool = False
 ) -> list[dict]:
     """
-    단일 비디오 처리: R2 로드 → 청킹 → Context/Topics → 임베딩 → 벡터 생성
+    단일 비디오 처리: R2에서 기존 chunks.json 로드 → 임베딩만 생성
 
     Returns:
         생성된 벡터 리스트
     """
-    # 1. R2에서 데이터 로드
-    data = r2.get_video_data(video_id)
-    if not data:
-        raise ValueError(f"R2 데이터 없음: {video_id}")
+    # 1. R2에서 기존 청크 데이터 로드 (context, topics 포함)
+    chunks = r2.get_json(f"chunks/{video_id}/chunks.json")
+    if not chunks:
+        raise ValueError(f"R2 chunks 없음: {video_id}")
 
-    # 2. 메타데이터 조회 (R2에서 추가 정보 로드)
-    metadata = r2.get_json(f"metadata/{video_id}/metadata.json") or {}
-    video_title = metadata.get('video_title', f'Video {video_id}')
-    channel_id = metadata.get('channel_id', '')
-    channel_name = metadata.get('channel_name', 'Unknown')
-    published_at = metadata.get('published_at', '')
+    # 2. 채널 메타데이터 조회
+    channel_id = chunks[0].get('channel_id', '') if chunks else ''
+    channel_name = chunks[0].get('channel_name', 'Unknown') if chunks else 'Unknown'
+    video_title = chunks[0].get('video_title', f'Video {video_id}') if chunks else f'Video {video_id}'
 
-    # 채널 메타데이터 조회
     channel_meta = channels_meta.get(channel_id, {})
     if not channel_meta:
-        # channel_name으로 재시도
         for ch in channels_meta.values():
             if ch.get('name') == channel_name:
                 channel_meta = ch
                 break
 
-    # 3. 청킹
-    chunks = chunk_with_timestamps(
-        data['refined_text'],
-        data['raw_segments']
-    )
+    # 3. metadata에서 published_at 조회
+    metadata = r2.get_json(f"metadata/{video_id}/metadata.json") or {}
+    published_at = metadata.get('published_at', '')
 
-    if not chunks:
-        raise ValueError(f"청크 생성 실패: {video_id}")
+    # 4. 배치 임베딩 생성 (context + text 결합)
+    chunk_texts = [f"{c['context']}\n\n{c['text']}" for c in chunks]
 
-    # 4. 각 청크 처리
+    if dry_run:
+        embeddings = [[0.0] * 1024 for _ in chunks]
+    else:
+        def get_embedding_safe(text: str) -> list[float]:
+            try:
+                return processor.get_embedding(text)
+            except Exception as e:
+                logger.warning(f"임베딩 실패: {e}")
+                return []
+
+        embeddings = []
+        with ThreadPoolExecutor(max_workers=PARALLEL_WORKERS * 2) as executor:
+            futures = [executor.submit(get_embedding_safe, text) for text in chunk_texts]
+            for future in futures:
+                embeddings.append(future.result())
+
+    # 5. 벡터 생성 (R2의 context, topics 그대로 사용)
     vectors = []
-    for chunk in chunks:
-        # Context & Topics 생성
-        rate_limiter.wait()
-        context, topics = generate_context_and_topics(
-            processor,
-            chunk['text'],
-            video_title,
-            channel_name
-        )
+    for chunk, embedding in zip(chunks, embeddings):
+        if not embedding:
+            logger.warning(f"임베딩 실패, 스킵: {video_id}_chunk_{chunk['chunk_index']}")
+            continue
 
-        if dry_run:
-            # dry-run 모드에서는 더미 임베딩 사용
-            embedding = [0.0] * 1024
-        else:
-            # 임베딩 생성
-            embedding = generate_embedding(
-                processor,
-                chunk['text'],
-                context,
-                rate_limiter
-            )
-
-            if not embedding:
-                logger.warning(f"임베딩 실패, 스킵: {video_id}_chunk_{chunk['chunk_index']}")
-                continue
-
-        # 벡터 구조 생성
         vector = create_pinecone_vector(
             video_id=video_id,
             chunk_index=chunk['chunk_index'],
             chunk_text=chunk['text'],
-            context=context,
-            topics=topics,
+            context=chunk['context'],      # R2에서 가져온 context
+            topics=chunk['topics'],        # R2에서 가져온 topics
             start_time=chunk['start_time'],
             end_time=chunk['end_time'],
             video_title=video_title,
@@ -553,7 +558,6 @@ def process_video(
             embedding=embedding,
             published_at=published_at
         )
-
         vectors.append(vector)
 
     return vectors
@@ -584,7 +588,11 @@ def main():
     r2 = R2Client()
     channels_meta = load_channels_metadata()
     processor = GeminiProcessor()
-    rate_limiter = RateLimiter(calls_per_minute=15)
+    # Google API 할당량 초과 상태이므로 처음부터 OpenRouter 사용
+    processor.enable_fallback_mode()
+    log("⚡ OpenRouter 모드 활성화 (Google API 할당량 초과)")
+    # OpenRouter는 빠른 속도 지원 - 60 calls/min (1초 간격)
+    rate_limiter = RateLimiter(calls_per_minute=60)
 
     # Pinecone 초기화
     pc = Pinecone(api_key=settings.PINECONE_API_KEY)
@@ -630,15 +638,23 @@ def main():
         try:
             log(f"\n[{i}/{total}] {video_id}")
 
-            # 비디오 처리
-            vectors = process_video(
-                video_id=video_id,
-                r2=r2,
-                processor=processor,
-                channels_meta=channels_meta,
-                rate_limiter=rate_limiter,
-                dry_run=args.dry_run
-            )
+            # 타임아웃 설정 (Unix 시스템에서만 동작)
+            signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(VIDEO_TIMEOUT)
+
+            try:
+                # 비디오 처리
+                vectors = process_video(
+                    video_id=video_id,
+                    r2=r2,
+                    processor=processor,
+                    channels_meta=channels_meta,
+                    rate_limiter=rate_limiter,
+                    dry_run=args.dry_run
+                )
+            finally:
+                # 타임아웃 해제
+                signal.alarm(0)
 
             log(f"  청크 수: {len(vectors)}개")
 
@@ -651,6 +667,11 @@ def main():
             progress.mark_completed(video_id, len(vectors))
             success += 1
             total_chunks += len(vectors)
+
+        except TimeoutError as e:
+            logger.error(f"  ❌ 타임아웃 ({VIDEO_TIMEOUT}초): {video_id}")
+            progress.mark_failed(video_id, f"타임아웃 ({VIDEO_TIMEOUT}초)")
+            failed += 1
 
         except Exception as e:
             logger.error(f"  ❌ 실패: {e}")

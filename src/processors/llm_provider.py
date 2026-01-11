@@ -490,7 +490,8 @@ class LLMManager:
         """
         텍스트의 임베딩 벡터를 생성합니다.
 
-        Google API를 먼저 시도하고, 실패 시 OpenRouter로 폴백합니다.
+        폴백 모드가 아니면 Google API를 먼저 시도하고, 실패 시 OpenRouter로 폴백합니다.
+        폴백 모드가 활성화되면 Google API를 건너뛰고 바로 OpenRouter를 사용합니다.
 
         Args:
             text: 임베딩할 텍스트
@@ -498,14 +499,17 @@ class LLMManager:
         Returns:
             임베딩 벡터 (1024차원)
         """
-        # 1차: Google API (임베딩은 별도 할당량이므로 폴백 모드 무시)
-        if self.google_provider.is_available:
+        # 1차: Google API (폴백 모드가 아닐 때만)
+        if not self._fallback_mode and self.google_provider.is_available:
             try:
                 embedding = self.google_provider.get_embedding(text)
                 if embedding:
                     return embedding
             except Exception as e:
                 print(f"[LLMManager] Google 임베딩 실패: {e}")
+                # 임베딩도 할당량 초과 시 폴백 모드 활성화
+                if "429" in str(e) or "quota" in str(e).lower():
+                    self.enable_fallback_mode()
 
         # 2차: OpenRouter 폴백
         if self.is_openrouter_available:
